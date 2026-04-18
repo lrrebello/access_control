@@ -81,18 +81,33 @@
                             <input type="text" name="driver_doc" class="form-control" value="{{ log.driver_doc }}" required>
                         </div>
 
+                        <!-- ACOMPANHANTES DINÂMICOS -->
                         <div class="col-12 mt-3 border-top pt-2">
-                            <h6>Acompanhante (Opcional)</h6>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Nome do Acompanhante</label>
-                            <input type="text" name="companion_name" class="form-control" value="{{ log.companion_name or '' }}">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Documento do Acompanhante</label>
-                            <input type="text" name="companion_doc" class="form-control" value="{{ log.companion_doc or '' }}">
+                            <label class="form-label fw-bold">Acompanhantes</label>
+                            <div id="companions-container">
+                                {% for companion in log.companions %}
+                                <div class="companion-entry border rounded p-2 mb-2" style="background-color: #f8f9fa;">
+                                    <div class="row g-1">
+                                        <div class="col-8">
+                                            <input type="text" name="companion_name[]" class="form-control form-control-sm" 
+                                                   value="{{ companion.name }}" placeholder="Nome do acompanhante">
+                                        </div>
+                                        <div class="col-3">
+                                            <input type="text" name="companion_doc[]" class="form-control form-control-sm" 
+                                                   value="{{ companion.document }}" placeholder="Documento">
+                                        </div>
+                                        <div class="col-1">
+                                            <button type="button" class="btn btn-danger btn-sm remove-companion w-100" title="Remover">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" id="add-companion-btn" class="btn btn-outline-primary btn-sm mt-2">
+                                <i class="bi bi-plus-circle"></i> Adicionar Acompanhante
+                            </button>
                         </div>
 
                         <div class="col-12">
@@ -138,13 +153,13 @@
 </div>
 
 <script>
-// Autocomplete para veículos e condutores
+// === AUTOPREENCHIMENTO ===
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles')?.textContent || '[]');
+const authDrivers = JSON.parse(document.getElementById('data-auth-drivers')?.textContent || '[]');
+
 const vehicleInput = document.querySelector('input[name="vehicle_plate"]');
 const companyInput = document.querySelector('input[name="company"]');
 const vehicleTypeSelect = document.querySelector('select[name="vehicle_type"]');
-
-const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles')?.textContent || '[]');
-const authDrivers = JSON.parse(document.getElementById('data-auth-drivers')?.textContent || '[]');
 
 if (vehicleInput) {
     vehicleInput.addEventListener('input', function() {
@@ -169,13 +184,70 @@ if (driverNameInput) {
         }
     });
 }
+
+// === ACOMPANHANTES DINÂMICOS ===
+function addCompanionField(name = '', doc = '') {
+    const container = document.getElementById('companions-container');
+    if (!container) return;
+    
+    const companionDiv = document.createElement('div');
+    companionDiv.className = 'companion-entry border rounded p-2 mb-2';
+    companionDiv.style.backgroundColor = '#f8f9fa';
+    companionDiv.innerHTML = `
+        <div class="row g-1">
+            <div class="col-8">
+                <input type="text" name="companion_name[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(name)}" placeholder="Nome do acompanhante">
+            </div>
+            <div class="col-3">
+                <input type="text" name="companion_doc[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(doc)}" placeholder="Documento">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm remove-companion w-100" title="Remover">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    companionDiv.querySelector('.remove-companion').addEventListener('click', function() {
+        companionDiv.remove();
+    });
+    
+    container.appendChild(companionDiv);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Inicializar botão de adicionar acompanhante
+document.addEventListener('DOMContentLoaded', function() {
+    const addBtn = document.getElementById('add-companion-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            addCompanionField();
+        });
+    }
+    
+    // Adicionar evento de remover para os botões existentes
+    document.querySelectorAll('.remove-companion').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.closest('.companion-entry').remove();
+        });
+    });
+});
 </script>
 
 <!-- Dados para JavaScript -->
 <script id="data-auth-vehicles" type="application/json">
 [
     {% for v in auth_vehicles %}
-    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {% if not loop.last %},{% endif %}
     {% endfor %}
 ]
 </script>
@@ -183,7 +255,7 @@ if (driverNameInput) {
 <script id="data-auth-drivers" type="application/json">
 [
     {% for d in auth_drivers %}
-    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {% if not loop.last %},{% endif %}
     {% endfor %}
 ]
 </script>
