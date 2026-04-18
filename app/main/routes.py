@@ -2,7 +2,7 @@ from flask import render_template, url_for, flash, redirect, request, jsonify
 from app import db
 from app.models import AccessLog, AuthorizedVehicle, AuthorizedTrailer, AuthorizedDriver, Companion
 from app.main import main
-from flask_login import login_required
+from flask_login import login_required, current_user
 from datetime import datetime
 
 # ====================== DASHBOARD ======================
@@ -14,7 +14,11 @@ def dashboard():
     search_query = request.args.get('search', '').strip()
     
     query = AccessLog.query
-
+    
+    # Filtrar por usuário - ADMINS veem tudo, outros veem só seus registros
+    if not current_user.is_admin:
+        query = query.filter(AccessLog.user_id == current_user.id)
+    
     if search_query:
         query = query.filter(
             (AccessLog.vehicle_plate.ilike(f'%{search_query}%')) |
@@ -29,20 +33,29 @@ def dashboard():
     else:
         logs = query.order_by(AccessLog.entry_time.desc()).all()
 
-    active_logs = AccessLog.query.filter(AccessLog.exit_time == None).all()
+    # CORRIGIDO: Filtrar ativos pelo usuário atual
+    active_query = AccessLog.query.filter(AccessLog.exit_time == None)
+    if not current_user.is_admin:
+        active_query = active_query.filter(AccessLog.user_id == current_user.id)
+    active_logs = active_query.all()
     total_vehicles_inside = len(active_logs)
     people_inside = sum(log.total_people for log in active_logs)
 
-    # CONTAGEM CORRETA DE SAÍDAS REGISTRADAS (HOJE)
+    # CORRIGIDO: Contagem de saídas de HOJE pelo usuário atual
     today = datetime.now().date()
-    today_exits = AccessLog.query.filter(
-        db.func.date(AccessLog.exit_time) == today
-    ).count()
+    today_exits_query = AccessLog.query.filter(db.func.date(AccessLog.exit_time) == today)
+    if not current_user.is_admin:
+        today_exits_query = today_exits_query.filter(AccessLog.user_id == current_user.id)
+    today_exits = today_exits_query.count()
     
-    today_movements = AccessLog.query.filter(
+    # CORRIGIDO: Pessoas controladas hoje pelo usuário atual
+    today_movements_query = AccessLog.query.filter(
         (db.func.date(AccessLog.entry_time) == today) | 
         (db.func.date(AccessLog.exit_time) == today)
-    ).all()
+    )
+    if not current_user.is_admin:
+        today_movements_query = today_movements_query.filter(AccessLog.user_id == current_user.id)
+    today_movements = today_movements_query.all()
     daily_people = sum(log.total_people for log in today_movements)
 
     auth_vehicles = AuthorizedVehicle.query.all()
@@ -88,6 +101,7 @@ def new_access():
 
     # Criar o registro de acesso
     log = AccessLog(
+        user_id=current_user.id,
         vehicle_plate=vehicle_plate,
         trailer_plate=trailer_plate,
         vehicle_type=request.form.get('vehicle_type'),

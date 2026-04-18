@@ -2,7 +2,7 @@ from flask import render_template, request, send_file, flash, redirect, url_for,
 from app import db
 from app.models import AccessLog
 from app.reports import reports
-from flask_login import login_required
+from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
@@ -37,6 +37,10 @@ def view_reports():
     end_date_str = request.form.get('end_date') or request.args.get('end_date')
 
     query = AccessLog.query
+    
+    # FILTRO POR USUÁRIO - ADMINS veem tudo, outros veem só seus registros
+    if not current_user.is_admin:
+        query = query.filter(AccessLog.user_id == current_user.id)
 
     if start_date_str:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')

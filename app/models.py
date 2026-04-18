@@ -10,6 +10,9 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
+    is_approved = db.Column(db.Boolean, default=False)  # Novo campo
+    is_admin = db.Column(db.Boolean, default=False)     # Admin pode aprovar outros
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
 # ==================== TABELAS DE AUTORIZAÇÃO ====================
 
@@ -62,6 +65,7 @@ class Companion(db.Model):
 
 class AccessLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     vehicle_plate = db.Column(db.String(20), nullable=False)
     trailer_plate = db.Column(db.String(20))
     vehicle_type = db.Column(db.String(20), nullable=False)
@@ -74,6 +78,7 @@ class AccessLog(db.Model):
     alert_msg = db.Column(db.String(255))
     
     # Relacionamento com acompanhantes
+    user = db.relationship('User', backref='access_logs')
     companions = db.relationship('Companion', back_populates='access_log', cascade='all, delete-orphan')
 
     @property
