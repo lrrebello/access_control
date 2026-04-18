@@ -109,6 +109,7 @@ def export_excel(logs):
         
         # Adicionar cabeçalho com informações do usuário
         from openpyxl.styles import Font, Alignment
+        from openpyxl.utils import get_column_letter
         
         # Inserir linhas no topo
         worksheet.insert_rows(0, 4)
@@ -124,18 +125,21 @@ def export_excel(logs):
         worksheet['A3'] = f'Data: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
         worksheet['A4'] = f'Período: {request.form.get("start_date", "Tudo")} até {request.form.get("end_date", "Tudo")}'
         
-        # Ajustar largura das colunas
-        for column in worksheet.columns:
+        # Ajustar largura das colunas - VERSÃO CORRIGIDA
+        for col in worksheet.columns:
             max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    # Pular células mescladas
+                    if hasattr(cell, 'value') and cell.value:
+                        cell_length = len(str(cell.value))
+                        if cell_length > max_length:
+                            max_length = cell_length
                 except:
                     pass
             adjusted_width = min(max_length + 2, 50)
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+            worksheet.column_dimensions[col_letter].width = adjusted_width
     
     output.seek(0)
     filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
