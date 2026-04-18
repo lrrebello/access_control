@@ -145,7 +145,7 @@
     </table>
 
     <div class="footer">
-        Sistema de Controle de Acesso • Página <span class="page-number"></span>
+        Gerado por: {{ current_user.username }} - {{ now.strftime('%d/%m/%Y %H:%M') }} | Sistema de Controle de Acesso
     </div>
 </body>
 </html>

@@ -1,90 +1,91 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="row mb-4 text-center">
-    <div class="col-md-3">
+
+<!-- Cards de Estatísticas - Compactos -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6">
         <a href="{{ url_for('main.dashboard', filter='active') }}" class="text-decoration-none">
-            <div class="card card-stats shadow-sm border-0 bg-primary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'active' else '' }}">
-                <div class="card-body">
-                    <h6 class="card-title opacity-75">Veículos no Local</h6>
-                    <h2 class="display-6 fw-bold">{{ total_vehicles }}</h2>
+            <div class="card border-0 bg-primary text-white shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0 opacity-75 small">Veículos no Local</h6>
+                            <h2 class="mb-0 fw-bold">{{ total_vehicles }}</h2>
+                        </div>
+                        <i class="bi bi-truck fs-1 opacity-50"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 col-6">
         <a href="{{ url_for('main.dashboard', filter='finished') }}" class="text-decoration-none">
-            <div class="card card-stats shadow-sm border-0 bg-secondary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'finished' else '' }}">
-                <div class="card-body">
-                    <h6 class="card-title opacity-75">Saídas Registradas (Hoje)</h6>
-                    <h2 class="display-6 fw-bold">{{ today_exits }}</h2>
+            <div class="card border-0 bg-secondary text-white shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0 opacity-75 small">Saídas Hoje</h6>
+                            <h2 class="mb-0 fw-bold">{{ today_exits }}</h2>
+                        </div>
+                        <i class="bi bi-check-circle fs-1 opacity-50"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <div class="card card-stats shadow-sm border-0 bg-success text-white">
-            <div class="card-body">
-                <h6 class="card-title opacity-75">Pessoas no Local</h6>
-                <h2 class="display-6 fw-bold">{{ people_inside }}</h2>
+    <div class="col-md-3 col-6">
+        <div class="card border-0 bg-success text-white shadow-sm">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0 opacity-75 small">Pessoas no Local</h6>
+                        <h2 class="mb-0 fw-bold">{{ people_inside }}</h2>
+                    </div>
+                    <i class="bi bi-people fs-1 opacity-50"></i>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card card-stats shadow-sm border-0 bg-warning text-dark">
-            <div class="card-body">
-                <h6 class="card-title opacity-75">Pessoas Controladas (Hoje)</h6>
-                <h2 class="display-6 fw-bold">{{ daily_people }}</h2>
+    <div class="col-md-3 col-6">
+        <div class="card border-0 bg-warning text-dark shadow-sm">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0 opacity-75 small">Total Hoje</h6>
+                        <h2 class="mb-0 fw-bold">{{ daily_people }}</h2>
+                    </div>
+                    <i class="bi bi-graph-up fs-1 opacity-50"></i>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <div class="row">
-    <!-- Lado Esquerdo: Formulário de Registro Rápido -->
-    <div class="col-md-4">
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Registro de Entrada</h5>
-                <a href="{{ url_for('main.management') }}" class="btn btn-outline-light btn-sm">Novo Cadastro</a>
+    <!-- Formulário Rápido - Lado Esquerdo (compacto) -->
+    <div class="col-lg-3">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-dark text-white py-2">
+                <h6 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Registrar Entrada</h6>
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <form action="{{ url_for('main.new_access') }}" method="POST" autocomplete="off" id="accessForm">
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Matrícula</label>
+                        <input list="list_vehicles" type="text" name="vehicle_plate" id="vehicle_plate_input" 
+                               class="form-control form-control-sm" required placeholder="Ex: AA-12-34"
+                               style="text-transform: uppercase;">
+                        <datalist id="list_vehicles">
+                            {% for v in auth_vehicles %}
+                            <option value="{{ v.plate }}">{{ v.plate }} - {{ v.vehicle_type }} - {{ v.company or 'Sem empresa' }}</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
                     <div class="row g-2">
-                        <div class="col-12">
-                            <label class="form-label small mb-1">Matrícula do Veículo</label>
-                            <input list="list_vehicles" 
-                                   type="text" 
-                                   name="vehicle_plate" 
-                                   id="vehicle_plate_input" 
-                                   class="form-control form-control-sm" 
-                                   required 
-                                   placeholder="Ex: VIG-2026"
-                                   style="text-transform: uppercase;">
-                            <datalist id="list_vehicles">
-                                {% for v in auth_vehicles %}
-                                <option value="{{ v.plate }}">{{ v.plate }} — {{ v.company or 'Sem empresa' }} ({{ v.vehicle_type }})</option>
-                                {% endfor %}
-                            </datalist>
-                        </div>
-
                         <div class="col-6">
-                            <label class="form-label small mb-1">Reboque (Opcional)</label>
-                            <input list="list_trailers" 
-                                   type="text" 
-                                   name="trailer_plate" 
-                                   class="form-control form-control-sm" 
-                                   placeholder="Ex: REB-1234"
-                                   style="text-transform: uppercase;">
-                            <datalist id="list_trailers">
-                                {% for t in auth_trailers %}
-                                <option value="{{ t.plate }}">{{ t.plate }}</option>
-                                {% endfor %}
-                            </datalist>
-                        </div>
-
-                        <div class="col-6">
-                            <label class="form-label small mb-1">Tipo de Veículo</label>
+                            <label class="form-label small fw-bold">Tipo</label>
                             <select name="vehicle_type" id="vehicle_type_select" class="form-select form-select-sm" required>
                                 <option value="ligeiro">Ligeiro</option>
                                 <option value="pesado">Pesado</option>
@@ -92,89 +93,100 @@
                                 <option value="pedestre">Pedestre</option>
                             </select>
                         </div>
-
-                        <div class="col-12">
-                            <label class="form-label small mb-1">Empresa</label>
-                            <input type="text" 
-                                   name="company" 
-                                   id="company_input" 
-                                   class="form-control form-control-sm" 
-                                   required>
-                        </div>
-
-                        <!-- Dados do Condutor -->
-                        <div class="col-12 mt-3 border-top pt-2">
-                            <label class="form-label small mb-1">Nome do Condutor</label>
-                            <input list="list_drivers" 
-                                   type="text" 
-                                   name="driver_name" 
-                                   id="driver_name_input" 
-                                   class="form-control form-control-sm" 
-                                   required>
-                            <datalist id="list_drivers">
-                                {% for d in auth_drivers %}
-                                <option value="{{ d.name }}">{{ d.name }} — {{ d.document }}</option>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Reboque</label>
+                            <input list="list_trailers" type="text" name="trailer_plate" id="trailer_plate_input"
+                                   class="form-control form-control-sm" placeholder="Opcional"
+                                   style="text-transform: uppercase;">
+                            <datalist id="list_trailers">
+                                {% for t in auth_trailers %}
+                                <option value="{{ t.plate }}">{{ t.plate }} - {{ t.company or 'Sem empresa' }}</option>
                                 {% endfor %}
                             </datalist>
                         </div>
-
-                        <div class="col-12">
-                            <label class="form-label small mb-1">Documento do Condutor</label>
-                            <input type="text" 
-                                   name="driver_doc" 
-                                   id="driver_doc_input" 
-                                   class="form-control form-control-sm" 
-                                   required>
-                        </div>
-
-                        <!-- ACOMPANHANTES DINÂMICOS -->
-                        <div class="col-12 mt-3 border-top pt-2">
-                            <label class="form-label small mb-1 fw-bold">Acompanhantes</label>
-                            <div id="companions-container">
-                                <!-- Os acompanhantes serão adicionados aqui dinamicamente -->
-                            </div>
-                            <button type="button" id="add-companion-btn" class="btn btn-outline-primary btn-sm mt-2">
-                                ➕ Adicionar Acompanhante
-                            </button>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small mb-1">Observações</label>
-                            <textarea name="observations" class="form-control form-control-sm" rows="2"></textarea>
-                        </div>
-
-                        <div class="col-12 d-grid mt-3">
-                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
-                        </div>
                     </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Empresa</label>
+                        <input type="text" name="company" id="company_input" class="form-control form-control-sm" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Condutor</label>
+                        <input list="list_drivers" type="text" name="driver_name" id="driver_name_input" 
+                               class="form-control form-control-sm" required>
+                        <datalist id="list_drivers">
+                            {% for d in auth_drivers %}
+                            <option value="{{ d.name }}">{{ d.name }} - {{ d.document }} - {{ d.company or '' }}</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Documento</label>
+                        <input type="text" name="driver_doc" id="driver_doc_input" class="form-control form-control-sm" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Acompanhantes</label>
+                        <div id="companions-container"></div>
+                        <button type="button" id="add-companion-btn" class="btn btn-outline-primary btn-sm w-100 mt-1">
+                            <i class="bi bi-plus-circle"></i> Adicionar
+                        </button>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Observações</label>
+                        <textarea name="observations" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-save"></i> Registrar
+                    </button>
                 </form>
             </div>
         </div>
+        
+        <!-- Botão para Cadastros -->
+        <div class="d-grid">
+            <a href="{{ url_for('main.management') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-database-gear"></i> Gerenciar Cadastros
+            </a>
+        </div>
     </div>
 
-    <!-- Lado Direito: Tabela -->
-    <div class="col-md-8">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    {% if filter_type == 'active' %}Veículos no Local{% elif filter_type == 'finished' %}Registros Finalizados{% else %}Todos os Registros{% endif %}
-                </h5>
+    <!-- Tabela de Registros - Lado Direito (maior espaço) -->
+    <div class="col-lg-9">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-table me-2"></i>
+                    {% if filter_type == 'active' %}📌 Veículos no Local
+                    {% elif filter_type == 'finished' %}✅ Registros Finalizados
+                    {% else %}📋 Todos os Registros{% endif %}
+                </h6>
                 <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
                     <input type="hidden" name="filter" value="{{ filter_type }}">
-                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Buscar placa, condutor..." value="{{ search_query }}">
-                    <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
+                    <input type="text" name="search" class="form-control form-control-sm" 
+                        placeholder="Buscar..." value="{{ search_query }}" style="width: 200px;">
+                    <button type="submit" class="btn btn-dark btn-sm">
+                        <i class="bi bi-search"></i>
+                    </button>
                 </form>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 small">
                         <thead class="table-light">
                             <tr>
                                 <th>Veículo</th>
-                                <th>Condutor / Acompanhantes</th>
+                                <th>Condutor</th>
                                 <th>Entrada</th>
-                                <th>Saída / Tempo</th>
-                                <th>Ação</th>
+                                <th>Saída/Tempo</th>
+                                {% if current_user.is_admin %}
+                                <th>Usuário</th>
+                                {% endif %}
+                                <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -184,47 +196,64 @@
                                     <span class="fw-bold">{{ log.vehicle_plate }}</span>
                                     <span class="badge bg-light text-dark border ms-1">{{ log.vehicle_type }}</span>
                                     {% if log.trailer_plate %}
-                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">R: {{ log.trailer_plate }}</span>
+                                        <br><span class="badge bg-secondary">R: {{ log.trailer_plate }}</span>
                                     {% endif %}
                                     <br><small class="text-muted">{{ log.company }}</small>
                                 </td>
                                 <td>
-                                    <strong>{{ log.driver_name }}</strong>
+                                    {{ log.driver_name }}
                                     <br><small class="text-muted">{{ log.driver_doc }}</small>
                                     {% if log.companions %}
-                                        <br><span class="text-success small">👥 Acompanhantes ({{ log.companions|length }}):</span>
-                                        {% for companion in log.companions %}
-                                            <br><small class="text-muted">└ {{ companion.name }} ({{ companion.document }})</small>
-                                        {% endfor %}
+                                        <br><span class="text-success">👥 +{{ log.companions|length }}</span>
                                     {% endif %}
                                     {% if log.alert_msg %}
-                                        <br><span class="text-danger fw-bold" style="font-size: 0.75rem;">⚠️ {{ log.alert_msg }}</span>
+                                        <br><span class="text-danger">⚠️ {{ log.alert_msg|truncate(30) }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
                                 <td>
                                     {% if log.exit_time %}
-                                        <span class="text-muted small">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
-                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">{{ log.duration }}</span>
+                                        <span class="text-muted">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
+                                        <br><span class="badge bg-secondary">{{ log.duration }}</span>
                                     {% else %}
                                         <span class="badge bg-info text-dark">{{ log.duration }}</span>
                                     {% endif %}
-                                 </td>
-                                 <td>
-                                    <div class="btn-group btn-group-sm" role="group">
+                                </td>
+                                {% if current_user.is_admin %}
+                                <td>
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-person-circle"></i> {{ log.user.username if log.user else 'Desconhecido' }}
+                                    </span>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
                                         {% if not log.exit_time %}
-                                            <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" class="btn btn-danger">Sair</a>
+                                            <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" 
+                                            class="btn btn-danger" title="Registrar Saída">
+                                                <i class="bi bi-box-arrow-right"></i>
+                                            </a>
                                         {% else %}
-                                            <a href="{{ url_for('main.remove_exit', log_id=log.id) }}" class="btn btn-warning" onclick="return confirm('Remover a saída deste registro? O veículo voltará para a lista de ativos.')">Desmarcar</a>
+                                            <a href="{{ url_for('main.remove_exit', log_id=log.id) }}" 
+                                            class="btn btn-warning" title="Desmarcar"
+                                            onclick="return confirm('Remover saída?')">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </a>
                                         {% endif %}
-                                        <a href="{{ url_for('main.edit_access', log_id=log.id) }}" class="btn btn-outline-primary">✏️ Editar</a>
+                                        <a href="{{ url_for('main.edit_access', log_id=log.id) }}" 
+                                        class="btn btn-outline-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
                                     </div>
-                                 </td>
-                             </tr>
+                                </td>
+                            </tr>
                             {% else %}
-                             <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">Nenhum registro encontrado.</td>
-                             </tr>
+                            <tr>
+                                <td colspan="{% if current_user.is_admin %}6{% else %}5{% endif %}" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                                    Nenhum registro encontrado.
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -234,8 +263,67 @@
     </div>
 </div>
 
+<!-- Dados para JavaScript (JSON) -->
+<script id="data-auth-vehicles" type="application/json">
+[
+    {% for v in auth_vehicles %}
+    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {% if not loop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+
+<script id="data-auth-drivers" type="application/json">
+[
+    {% for d in auth_drivers %}
+    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {% if not loop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+
 <script>
-// Controle de acompanhantes dinâmicos
+// === AUTOPREENCHIMENTO ===
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles').textContent || '[]');
+const authDrivers = JSON.parse(document.getElementById('data-auth-drivers').textContent || '[]');
+
+// Autocomplete para VEÍCULO
+const vehicleInput = document.getElementById('vehicle_plate_input');
+const companyInput = document.getElementById('company_input');
+const typeSelect = document.getElementById('vehicle_type_select');
+
+if (vehicleInput) {
+    vehicleInput.addEventListener('input', function() {
+        const val = this.value.trim().toUpperCase();
+        this.value = val;
+        
+        const match = authVehicles.find(v => v.plate === val);
+        if (match) {
+            companyInput.value = match.company || '';
+            typeSelect.value = match.type || 'ligeiro';
+        } else {
+            // Não limpa os campos se não encontrar, apenas não preenche
+        }
+    });
+}
+
+// Autocomplete para CONDUTOR
+const driverNameInput = document.getElementById('driver_name_input');
+const driverDocInput = document.getElementById('driver_doc_input');
+
+if (driverNameInput) {
+    driverNameInput.addEventListener('input', function() {
+        const val = this.value.trim();
+        const match = authDrivers.find(d => d.name === val);
+        
+        if (match) {
+            driverDocInput.value = match.doc || '';
+            if (!companyInput.value) {
+                companyInput.value = match.company || '';
+            }
+        }
+    });
+}
+
+// === ACOMPANHANTES DINÂMICOS ===
 let companionCount = 0;
 
 function addCompanionField(name = '', doc = '') {
@@ -244,51 +332,28 @@ function addCompanionField(name = '', doc = '') {
     companionDiv.className = 'companion-entry border rounded p-2 mb-2';
     companionDiv.style.backgroundColor = '#f8f9fa';
     companionDiv.innerHTML = `
-        <div class="row g-2">
-            <div class="col-12">
-                <label class="form-label small mb-1">Nome do Acompanhante ${companionCount + 1}</label>
-                <input type="text" 
-                       name="companion_name[]" 
-                       class="form-control form-control-sm" 
-                       value="${escapeHtml(name)}"
-                       placeholder="Ex: João Silva">
+        <div class="row g-1">
+            <div class="col-8">
+                <input type="text" name="companion_name[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(name)}" placeholder="Nome">
             </div>
-            <div class="col-10">
-                <label class="form-label small mb-1">Documento</label>
-                <input type="text" 
-                       name="companion_doc[]" 
-                       class="form-control form-control-sm" 
-                       value="${escapeHtml(doc)}"
-                       placeholder="RG, CPF ou CNH">
+            <div class="col-3">
+                <input type="text" name="companion_doc[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(doc)}" placeholder="Documento">
             </div>
-            <div class="col-2 d-flex align-items-end">
-                <button type="button" class="btn btn-danger btn-sm remove-companion" style="width: 100%;">
-                    ✖
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm remove-companion w-100">
+                    <i class="bi bi-trash"></i>
                 </button>
             </div>
         </div>
     `;
     
-    // Adicionar evento para remover
-    const removeBtn = companionDiv.querySelector('.remove-companion');
-    removeBtn.addEventListener('click', function() {
+    companionDiv.querySelector('.remove-companion').addEventListener('click', function() {
         companionDiv.remove();
-        renumberCompanions();
     });
     
     container.appendChild(companionDiv);
-    companionCount++;
-}
-
-function renumberCompanions() {
-    const entries = document.querySelectorAll('.companion-entry');
-    entries.forEach((entry, index) => {
-        const label = entry.querySelector('.col-12 label');
-        if (label) {
-            label.textContent = `Nome do Acompanhante ${index + 1}`;
-        }
-    });
-    companionCount = entries.length;
 }
 
 function escapeHtml(text) {
@@ -298,62 +363,21 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Adicionar evento ao botão +
-document.getElementById('add-companion-btn').addEventListener('click', function() {
-    addCompanionField();
-});
-
-// Dados para autocomplete
-const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles').textContent || '[]');
-const authDrivers  = JSON.parse(document.getElementById('data-auth-drivers').textContent || '[]');
-
-const vehicleInput = document.getElementById('vehicle_plate_input');
-const companyInput = document.getElementById('company_input');
-const typeSelect   = document.getElementById('vehicle_type_select');
-
-if (vehicleInput) {
-    vehicleInput.addEventListener('input', function() {
-        const val = this.value.trim().toUpperCase();
-        this.value = val;
-        const match = authVehicles.find(v => v.plate === val);
-        if (match) {
-            companyInput.value = match.company || '';
-            typeSelect.value = match.type || 'ligeiro';
-        }
-    });
-}
-
-const driverNameInput = document.getElementById('driver_name_input');
-const driverDocInput = document.getElementById('driver_doc_input');
-
-if (driverNameInput) {
-    driverNameInput.addEventListener('input', function() {
-        const val = this.value.trim();
-        const match = authDrivers.find(d => d.name === val);
-        if (match) {
-            driverDocInput.value = match.doc || '';
-            if (!companyInput.value) {
-                companyInput.value = match.company || '';
-            }
-        }
+const addBtn = document.getElementById('add-companion-btn');
+if (addBtn) {
+    addBtn.addEventListener('click', function() {
+        addCompanionField();
     });
 }
 </script>
 
-<!-- Dados para JavaScript -->
-<script id="data-auth-vehicles" type="application/json">
-[
-    {% for v in auth_vehicles %}
-    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {{ "," if not loop.last else "" }}
-    {% endfor %}
-]
-</script>
-
-<script id="data-auth-drivers" type="application/json">
-[
-    {% for d in auth_drivers %}
-    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {{ "," if not loop.last else "" }}
-    {% endfor %}
-]
-</script>
+<style>
+    .card {
+        border-radius: 10px !important;
+    }
+    .table td, .table th {
+        padding: 10px 8px;
+        vertical-align: middle;
+    }
+</style>
 {% endblock %}

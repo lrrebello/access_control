@@ -13,7 +13,7 @@
 
                         {% if item_type == 'vehicle' or item_type == 'trailer' %}
                             <div class="col-12">
-                                <label class="form-label">Placa / Matrícula</label>
+                                <label class="form-label">Matrícula</label>
                                 <input type="text" name="plate" class="form-control text-uppercase" 
                                        value="{{ item.plate }}" required>
                             </div>
@@ -38,7 +38,7 @@
                                        value="{{ item.name }}" required>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Documento</label>
+                                <label class="form-label">Documento de Identificação</label>
                                 <input type="text" name="document" class="form-control" 
                                        value="{{ item.document }}" required>
                             </div>
@@ -51,7 +51,7 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label text-danger fw-bold">Data de Vencimento</label>
+                            <label class="form-label text-danger fw-bold">Data de Validade</label>
                             <input type="date" name="expiry_date" class="form-control" 
                                    value="{{ item.expiry_date.strftime('%Y-%m-%d') if item.expiry_date else '' }}" required>
                         </div>

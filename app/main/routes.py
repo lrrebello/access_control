@@ -72,7 +72,8 @@ def dashboard():
                            auth_trailers=auth_trailers,
                            auth_drivers=auth_drivers,
                            filter_type=filter_type,
-                           search_query=search_query)
+                           search_query=search_query,
+                           now=datetime.now())  # <-- ADICIONE ESTA LINHA)
 
 
 # ====================== REGISTRO DE ACESSO ======================
@@ -247,32 +248,66 @@ def management():
         expiry = datetime.strptime(expiry_str, '%Y-%m-%d').date() if expiry_str else None
 
         if m_type == 'vehicle':
+            plate = request.form.get('vehicle_plate', '').upper().strip()
+            vehicle_type = request.form.get('vehicle_type')
+            company = request.form.get('company')
+            
+            if not plate:
+                flash('A matrícula do veículo é obrigatória!', 'danger')
+                return redirect(url_for('main.management'))
+            
             new_item = AuthorizedVehicle(
-                plate=request.form.get('plate', '').upper().strip(),
-                vehicle_type=request.form.get('vehicle_type'),
-                company=request.form.get('company'),
+                plate=plate,
+                vehicle_type=vehicle_type,
+                company=company,
                 expiry_date=expiry
             )
+            db.session.add(new_item)
+            db.session.commit()
+            flash('Veículo cadastrado com sucesso!', 'success')
+            
         elif m_type == 'trailer':
+            plate = request.form.get('trailer_plate', '').upper().strip()
+            company = request.form.get('company')
+            
+            print(f"DEBUG: plate='{plate}', company='{company}'")  # Debug
+            
+            if not plate:
+                flash('A matrícula do reboque é obrigatória!', 'danger')
+                return redirect(url_for('main.management'))
+            
             new_item = AuthorizedTrailer(
-                plate=request.form.get('plate', '').upper().strip(),
-                company=request.form.get('company'),
+                plate=plate,
+                company=company,
                 expiry_date=expiry
             )
+            db.session.add(new_item)
+            db.session.commit()
+            flash('Reboque cadastrado com sucesso!', 'success')
+            
         elif m_type == 'driver':
+            name = request.form.get('driver_name')
+            document = request.form.get('driver_document')
+            company = request.form.get('company')
+            
+            if not name or not document:
+                flash('Nome e documento do condutor são obrigatórios!', 'danger')
+                return redirect(url_for('main.management'))
+            
             new_item = AuthorizedDriver(
-                name=request.form.get('name'),
-                document=request.form.get('document'),
-                company=request.form.get('company'),
+                name=name,
+                document=document,
+                company=company,
                 expiry_date=expiry
             )
+            db.session.add(new_item)
+            db.session.commit()
+            flash('Condutor cadastrado com sucesso!', 'success')
+            
         else:
             flash('Tipo inválido.', 'danger')
             return redirect(url_for('main.management'))
 
-        db.session.add(new_item)
-        db.session.commit()
-        flash('Autorização cadastrada com sucesso!', 'success')
         return redirect(url_for('main.management'))
 
     vehicles = AuthorizedVehicle.query.order_by(AuthorizedVehicle.plate).all()
