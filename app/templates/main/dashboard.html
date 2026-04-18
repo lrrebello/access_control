@@ -65,6 +65,12 @@
 <div class="row">
     <!-- Formulário Rápido - Lado Esquerdo (compacto) -->
     <div class="col-lg-3">
+            <!-- Botão para Cadastros -->
+            <div class="d-grid">
+                <a href="{{ url_for('main.management') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-database-gear"></i> Novo Cadastro
+                </a>
+            </div>
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-dark text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Registrar Entrada</h6>
@@ -147,12 +153,7 @@
             </div>
         </div>
         
-        <!-- Botão para Cadastros -->
-        <div class="d-grid">
-            <a href="{{ url_for('main.management') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-database-gear"></i> Gerenciar Cadastros
-            </a>
-        </div>
+
     </div>
 
     <!-- Tabela de Registros - Lado Direito (maior espaço) -->
