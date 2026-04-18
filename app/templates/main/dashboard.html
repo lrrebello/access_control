@@ -137,7 +137,7 @@
                         <label class="form-label small fw-bold">Acompanhantes</label>
                         <div id="companions-container"></div>
                         <button type="button" id="add-companion-btn" class="btn btn-outline-primary btn-sm w-100 mt-1">
-                            <i class="bi bi-plus-circle"></i> Adicionar
+                            <i class="bi bi-plus-circle"></i> Adicionar Acompanhante
                         </button>
                     </div>
 
@@ -180,53 +180,75 @@
                     <table class="table table-hover align-middle mb-0 small">
                         <thead class="table-light">
                             <tr>
-                                <th>Veículo</th>
-                                <th>Condutor</th>
-                                <th>Entrada</th>
-                                <th>Saída/Tempo</th>
+                                <th style="width: 15%">Veículo</th>
+                                <th style="width: 30%">Condutor / Acompanhantes</th>
+                                <th style="width: 12%">Entrada</th>
+                                <th style="width: 13%">Saída/Tempo</th>
                                 {% if current_user.is_admin %}
-                                <th>Usuário</th>
+                                <th style="width: 10%">Usuário</th>
                                 {% endif %}
-                                <th>Ações</th>
+                                <th style="width: 10%">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for log in logs %}
                             <tr class="{{ 'table-warning' if log.alert_msg else '' }}">
+                                <!-- Coluna Veículo - Compacta -->
                                 <td>
-                                    <span class="fw-bold">{{ log.vehicle_plate }}</span>
-                                    <span class="badge bg-light text-dark border ms-1">{{ log.vehicle_type }}</span>
+                                    <div class="fw-bold">{{ log.vehicle_plate }}</div>
+                                    <span class="badge bg-light text-dark border">{{ log.vehicle_type }}</span>
                                     {% if log.trailer_plate %}
-                                        <br><span class="badge bg-secondary">R: {{ log.trailer_plate }}</span>
+                                        <div class="mt-1"><span class="badge bg-secondary">R: {{ log.trailer_plate }}</span></div>
                                     {% endif %}
-                                    <br><small class="text-muted">{{ log.company }}</small>
+                                    <div class="text-muted small mt-1">{{ log.company|truncate(15) }}</div>
                                 </td>
+                                
+                                <!-- Coluna Condutor + Acompanhantes -->
                                 <td>
-                                    {{ log.driver_name }}
-                                    <br><small class="text-muted">{{ log.driver_doc }}</small>
-                                    {% if log.companions %}
-                                        <br><span class="text-success">👥 +{{ log.companions|length }}</span>
+                                    <div class="fw-bold">{{ log.driver_name }}</div>
+                                    <div class="text-muted small">{{ log.driver_doc }}</div>
+                                    
+                                    {% if log.companions and log.companions|length > 0 %}
+                                        <div class="mt-2">
+                                            <span class="text-success small fw-bold">👥 Acompanhantes ({{ log.companions|length }}):</span>
+                                            <div class="small text-muted mt-1">
+                                                {% for companion in log.companions %}
+                                                    <div class="d-flex justify-content-between">
+                                                        <span>{{ companion.name }}</span>
+                                                        <span class="text-secondary ms-2">{{ companion.document }}</span>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
                                     {% endif %}
+                                    
                                     {% if log.alert_msg %}
-                                        <br><span class="text-danger">⚠️ {{ log.alert_msg|truncate(30) }}</span>
+                                        <div class="text-danger small fw-bold mt-1">⚠️ {{ log.alert_msg|truncate(40) }}</div>
                                     {% endif %}
                                 </td>
-                                <td>{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+                                
+                                <!-- Entrada -->
+                                <td class="text-nowrap">{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+                                
+                                <!-- Saída / Tempo -->
                                 <td>
                                     {% if log.exit_time %}
-                                        <span class="text-muted">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
-                                        <br><span class="badge bg-secondary">{{ log.duration }}</span>
+                                        <div>{{ log.exit_time.strftime('%d/%m %H:%M') }}</div>
+                                        <span class="badge bg-secondary">{{ log.duration }}</span>
                                     {% else %}
                                         <span class="badge bg-info text-dark">{{ log.duration }}</span>
                                     {% endif %}
                                 </td>
+                                
                                 {% if current_user.is_admin %}
                                 <td>
                                     <span class="badge bg-secondary">
-                                        <i class="bi bi-person-circle"></i> {{ log.user.username if log.user else 'Desconhecido' }}
+                                        <i class="bi bi-person-circle"></i> {{ log.user.username if log.user else '?' }}
                                     </span>
                                 </td>
                                 {% endif %}
+                                
+                                <!-- Ações -->
                                 <td>
                                     <div class="btn-group btn-group-sm">
                                         {% if not log.exit_time %}
@@ -236,8 +258,8 @@
                                             </a>
                                         {% else %}
                                             <a href="{{ url_for('main.remove_exit', log_id=log.id) }}" 
-                                            class="btn btn-warning" title="Desmarcar"
-                                            onclick="return confirm('Remover saída?')">
+                                            class="btn btn-warning" title="Desmarcar Saída"
+                                            onclick="return confirm('Remover a saída deste registro?')">
                                                 <i class="bi bi-arrow-counterclockwise"></i>
                                             </a>
                                         {% endif %}
@@ -262,7 +284,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- Dados para JavaScript (JSON) -->
 <script id="data-auth-vehicles" type="application/json">
@@ -370,6 +391,73 @@ if (addBtn) {
         addCompanionField();
     });
 }
+</script>
+
+<script>
+// === ACOMPANHANTES DINÂMICOS ===
+let companionCount = 0;
+
+function addCompanionField(name = '', doc = '') {
+    const container = document.getElementById('companions-container');
+    if (!container) return;
+    
+    const companionDiv = document.createElement('div');
+    companionDiv.className = 'companion-entry border rounded p-2 mb-2';
+    companionDiv.style.backgroundColor = 'var(--bs-secondary-bg)';
+    companionDiv.innerHTML = `
+        <div class="row g-1">
+            <div class="col-8">
+                <input type="text" name="companion_name[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(name)}" placeholder="Nome do acompanhante">
+            </div>
+            <div class="col-3">
+                <input type="text" name="companion_doc[]" class="form-control form-control-sm" 
+                       value="${escapeHtml(doc)}" placeholder="Documento">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-danger btn-sm remove-companion w-100" title="Remover">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    companionDiv.querySelector('.remove-companion').addEventListener('click', function() {
+        companionDiv.remove();
+    });
+    
+    container.appendChild(companionDiv);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Adicionar botão de acompanhante
+const addBtn = document.getElementById('add-companion-btn');
+if (addBtn) {
+    addBtn.addEventListener('click', function() {
+        addCompanionField();
+    });
+}
+
+// Garantir que o container existe
+document.addEventListener('DOMContentLoaded', function() {
+    if (!document.getElementById('companions-container')) {
+        const form = document.querySelector('#accessForm');
+        if (form) {
+            const companionDiv = document.createElement('div');
+            companionDiv.id = 'companions-container';
+            const companionLabel = document.querySelector('#accessForm .mb-2:has(label[for])');
+            if (companionLabel) {
+                companionLabel.after(companionDiv);
+            }
+        }
+    }
+});
 </script>
 
 <style>
