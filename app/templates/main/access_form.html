@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Novo Registro{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">Registro de Entrada</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Veículo</label>
+                            <input type="text" name="vehicle_plate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Reboque</label>
+                            <input type="text" name="trailer_plate" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de Veículo</label>
+                            <select name="vehicle_type" class="form-select" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="company" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Dados do Condutor</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Condutor</label>
+                            <input type="text" name="driver_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Condutor</label>
+                            <input type="text" name="driver_doc" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Acompanhante (Opcional)</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Acompanhante</label>
+                            <input type="text" name="companion_name" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Acompanhante</label>
+                            <input type="text" name="companion_doc" class="form-control">
+                        </div>
+                        <hr>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observations" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-12 text-end">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

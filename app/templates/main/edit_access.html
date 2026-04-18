@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Editar Registro de Acesso{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">✏️ Editar Registro #{{ log.id }}</h5>
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-light btn-sm">Voltar</a>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <!-- Status atual -->
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <strong>Status atual:</strong> 
+                                {% if log.exit_time %}
+                                    <span class="badge bg-success">SAÍDA REGISTRADA em {{ log.exit_time.strftime('%d/%m/%Y %H:%M') }}</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">VEÍCULO AINDA NO LOCAL (entrada em {{ log.entry_time.strftime('%d/%m/%Y %H:%M') }})</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Dados do Veículo -->
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Veículo *</label>
+                            <input list="list_vehicles" type="text" name="vehicle_plate" class="form-control text-uppercase" 
+                                   value="{{ log.vehicle_plate }}" required>
+                            <datalist id="list_vehicles">
+                                {% for v in auth_vehicles %}
+                                <option value="{{ v.plate }}">{{ v.plate }} — {{ v.company or 'Sem empresa' }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Reboque</label>
+                            <input list="list_trailers" type="text" name="trailer_plate" class="form-control text-uppercase" 
+                                   value="{{ log.trailer_plate or '' }}">
+                            <datalist id="list_trailers">
+                                {% for t in auth_trailers %}
+                                <option value="{{ t.plate }}">{{ t.plate }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de Veículo *</label>
+                            <select name="vehicle_type" class="form-select" required>
+                                <option value="ligeiro" {{ 'selected' if log.vehicle_type == 'ligeiro' }}>Ligeiro</option>
+                                <option value="pesado" {{ 'selected' if log.vehicle_type == 'pesado' }}>Pesado</option>
+                                <option value="moto" {{ 'selected' if log.vehicle_type == 'moto' }}>Moto</option>
+                                <option value="pedestre" {{ 'selected' if log.vehicle_type == 'pedestre' }}>Pedestre</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa *</label>
+                            <input type="text" name="company" class="form-control" value="{{ log.company }}" required>
+                        </div>
+
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <h6>Dados do Condutor</h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Condutor *</label>
+                            <input list="list_drivers" type="text" name="driver_name" class="form-control" 
+                                   value="{{ log.driver_name }}" required>
+                            <datalist id="list_drivers">
+                                {% for d in auth_drivers %}
+                                <option value="{{ d.name }}">{{ d.name }} — {{ d.document }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Condutor *</label>
+                            <input type="text" name="driver_doc" class="form-control" value="{{ log.driver_doc }}" required>
+                        </div>
+
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <h6>Acompanhante (Opcional)</h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Acompanhante</label>
+                            <input type="text" name="companion_name" class="form-control" value="{{ log.companion_name or '' }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Acompanhante</label>
+                            <input type="text" name="companion_doc" class="form-control" value="{{ log.companion_doc or '' }}">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observations" class="form-control" rows="3">{{ log.observations or '' }}</textarea>
+                        </div>
+
+                        <!-- Controle de Saída -->
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label fw-bold">Status de Saída</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exit_status" id="still_inside" 
+                                       value="still_inside" {% if not log.exit_time %}checked{% endif %}>
+                                <label class="form-check-label" for="still_inside">
+                                    <span class="badge bg-warning text-dark">Ainda no local</span> (sem horário de saída)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exit_status" id="checked_out" 
+                                       value="checked_out" {% if log.exit_time %}checked{% endif %}>
+                                <label class="form-check-label" for="checked_out">
+                                    <span class="badge bg-success">Já saiu</span> (marcar horário de saída como agora)
+                                </label>
+                            </div>
+                            {% if log.exit_time %}
+                            <div class="mt-2 text-muted small">
+                                ⏱️ Saída registrada originalmente em: {{ log.exit_time.strftime('%d/%m/%Y %H:%M:%S') }}
+                                <br>⚠️ Ao marcar "Ainda no local", o horário de saída será removido.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Botões -->
+                        <div class="col-12 d-flex gap-2 mt-4">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary flex-fill">Cancelar</a>
+                            <button type="submit" class="btn btn-primary flex-fill">Salvar Alterações</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Autocomplete para veículos e condutores
+const vehicleInput = document.querySelector('input[name="vehicle_plate"]');
+const companyInput = document.querySelector('input[name="company"]');
+const vehicleTypeSelect = document.querySelector('select[name="vehicle_type"]');
+
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles')?.textContent || '[]');
+const authDrivers = JSON.parse(document.getElementById('data-auth-drivers')?.textContent || '[]');
+
+if (vehicleInput) {
+    vehicleInput.addEventListener('input', function() {
+        const val = this.value.trim().toUpperCase();
+        const match = authVehicles.find(v => v.plate === val);
+        if (match && companyInput) {
+            companyInput.value = match.company || '';
+            if (vehicleTypeSelect) vehicleTypeSelect.value = match.type || 'ligeiro';
+        }
+    });
+}
+
+const driverNameInput = document.querySelector('input[name="driver_name"]');
+const driverDocInput = document.querySelector('input[name="driver_doc"]');
+
+if (driverNameInput) {
+    driverNameInput.addEventListener('input', function() {
+        const val = this.value.trim();
+        const match = authDrivers.find(d => d.name === val);
+        if (match && driverDocInput) {
+            driverDocInput.value = match.doc || '';
+        }
+    });
+}
+</script>
+
+<!-- Dados para JavaScript -->
+<script id="data-auth-vehicles" type="application/json">
+[
+    {% for v in auth_vehicles %}
+    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+
+<script id="data-auth-drivers" type="application/json">
+[
+    {% for d in auth_drivers %}
+    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+{% endblock %}

@@ -1,0 +1,3317 @@
+==================================================
+          ESTRUTURA COMPLETA DO PROJETO
+==================================================
+
+=== TREE (estrutura de pastas) ===
+.
+├── app
+│   ├── auth
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── main
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── reports
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── static
+│   │   ├── css
+│   │   └── js
+│   ├── templates
+│   │   ├── auth
+│   │   │   ├── login.html
+│   │   │   └── register.html
+│   │   ├── main
+│   │   │   ├── access_form.html
+│   │   │   ├── dashboard.html
+│   │   │   └── management.html
+│   │   ├── reports
+│   │   │   ├── pdf_template.html
+│   │   │   └── reports.html
+│   │   └── base.html
+│   ├── __init__.py
+│   └── models.py
+├── instance
+├── cat_all.sh
+├── migrate_db.py
+├── requirements.txt
+├── run.py
+├── seed_db.py
+├── setup_db.py
+├── ta_ai.txt
+└── test_db.py
+
+13 directories, 24 files
+
+==================================================
+          ARQUIVOS E SEU CONTEÚDO
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/auth/__init__.py
+==================================================
+
+from flask import Blueprint
+
+auth = Blueprint('auth', __name__, template_folder='../templates/auth')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/auth/routes.py
+==================================================
+
+from flask import render_template, url_for, flash, redirect, request
+from app import db, bcrypt
+from app.models import User
+from app.auth import auth
+from flask_login import login_user, current_user, logout_user, login_required
+
+@auth.route("/register", methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if not username or not password:
+            flash('Por favor, preencha todos os campos.', 'warning')
+            return redirect(url_for('auth.register'))
+        
+        user_exists = User.query.filter_by(username=username).first()
+        if user_exists:
+            flash('Este nome de usuário já está em uso.', 'danger')
+            return redirect(url_for('auth.register'))
+
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user = User(username=username, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Sua conta foi criada! Agora você pode fazer o login.', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/register.html', title='Cadastro')
+
+@auth.route("/login", methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and bcrypt.check_password_hash(user.password, password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
+        else:
+            flash('Falha no login. Verifique o usuário e a senha.', 'danger')
+    return render_template('auth/login.html', title='Login')
+
+@auth.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('auth.login'))
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/__init__.py
+==================================================
+
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
+from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
+import os
+
+db = SQLAlchemy()
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.login_message_category = 'info'
+bcrypt = Bcrypt()
+migrate = Migrate()
+
+def create_app():
+    app = Flask(__name__)
+    
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-secreta-padrao')
+    # Nota: Em um ambiente real, o usuário deve configurar a URL do Postgres. 
+    # Vou usar SQLite por padrão para garantir que funcione no sandbox se o Postgres não estiver ativo, 
+    # mas o código está pronto para Postgres.
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    db.init_app(app)
+    login_manager.init_app(app)
+    bcrypt.init_app(app)
+    migrate.init_app(app, db)
+
+    from app.auth.routes import auth
+    from app.main.routes import main
+    from app.reports.routes import reports
+
+    app.register_blueprint(auth)
+    app.register_blueprint(main)
+    app.register_blueprint(reports)
+
+    return app
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/main/__init__.py
+==================================================
+
+from flask import Blueprint
+
+main = Blueprint('main', __name__, template_folder='../templates/main')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/main/routes.py
+==================================================
+
+from flask import render_template, url_for, flash, redirect, request, jsonify
+from app import db
+from app.models import AccessLog, AuthorizedVehicle, AuthorizedTrailer, AuthorizedDriver
+from app.main import main
+from flask_login import login_required
+from datetime import datetime
+
+@main.route("/")
+@main.route("/dashboard")
+@login_required
+def dashboard():
+    # Filtros e Busca
+    filter_type = request.args.get('filter', 'active') # active, finished, all
+    search_query = request.args.get('search', '').strip()
+    
+    query = AccessLog.query
+    
+    # Busca por placa, condutor ou empresa
+    if search_query:
+        query = query.filter(
+            (AccessLog.vehicle_plate.ilike(f'%{search_query}%')) |
+            (AccessLog.driver_name.ilike(f'%{search_query}%')) |
+            (AccessLog.company.ilike(f'%{search_query}%'))
+        )
+    
+    # Filtros por card
+    if filter_type == 'active':
+        logs = query.filter(AccessLog.exit_time == None).order_by(AccessLog.entry_time.desc()).all()
+    elif filter_type == 'finished':
+        logs = query.filter(AccessLog.exit_time != None).order_by(AccessLog.exit_time.desc()).all()
+    else:
+        logs = query.order_by(AccessLog.entry_time.desc()).all()
+    
+    # Estatísticas do Topo (Pessoas no Local agora é dinâmico com base nos logs ativos)
+    active_logs = AccessLog.query.filter(AccessLog.exit_time == None).all()
+    total_vehicles_inside = len(active_logs)
+    people_inside = sum(1 + (1 if log.companion_name else 0) for log in active_logs)
+    
+    # Total diário de pessoas controladas (ÚNICAS hoje)
+    today = datetime.now().date()
+    today_movements = AccessLog.query.filter(
+        (db.func.date(AccessLog.entry_time) == today) | 
+        (db.func.date(AccessLog.exit_time) == today)
+    ).all()
+    daily_people = sum(1 + (1 if log.companion_name else 0) for log in today_movements)
+    
+    # Dados para o formulário de registro (Autorizados para o autocomplete)
+    auth_vehicles = AuthorizedVehicle.query.all()
+    auth_trailers = AuthorizedTrailer.query.all()
+    auth_drivers = AuthorizedDriver.query.all()
+
+    return render_template('main/dashboard.html', 
+                           logs=logs, 
+                           total_vehicles=total_vehicles_inside,
+                           people_inside=people_inside,
+                           daily_people=daily_people,
+                           auth_vehicles=auth_vehicles,
+                           auth_trailers=auth_trailers,
+                           auth_drivers=auth_drivers,
+                           filter_type=filter_type,
+                           search_query=search_query,
+                           now=datetime.now())
+
+# --- Rotas de Registro de Acesso ---
+
+@main.route("/access/new", methods=['POST'])
+@login_required
+def new_access():
+    vehicle_plate = request.form.get('vehicle_plate').upper()
+    trailer_plate = request.form.get('trailer_plate').upper() if request.form.get('trailer_plate') else None
+    driver_name = request.form.get('driver_name')
+    
+    # Validação de Autorização e Validade
+    alert_msg = ""
+    today = datetime.now().date()
+    
+    # Checar Veículo
+    auth_v = AuthorizedVehicle.query.filter_by(plate=vehicle_plate).first()
+    if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
+        alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
+    
+    # Checar Reboque
+    if trailer_plate:
+        auth_t = AuthorizedTrailer.query.filter_by(plate=trailer_plate).first()
+        if auth_t and auth_t.expiry_date and auth_t.expiry_date < today:
+            alert_msg += f"REBOQUE VENCIDO ({auth_t.expiry_date.strftime('%d/%m/%Y')}). "
+            
+    # Checar Condutor
+    auth_d = AuthorizedDriver.query.filter_by(name=driver_name).first()
+    if auth_d and auth_d.expiry_date and auth_d.expiry_date < today:
+        alert_msg += f"CONDUTOR VENCIDO ({auth_d.expiry_date.strftime('%d/%m/%Y')}). "
+
+    log = AccessLog(
+        vehicle_plate=vehicle_plate,
+        trailer_plate=trailer_plate,
+        vehicle_type=request.form.get('vehicle_type'),
+        driver_name=driver_name,
+        driver_doc=request.form.get('driver_doc'),
+        companion_name=request.form.get('companion_name'),
+        companion_doc=request.form.get('companion_doc'),
+        company=request.form.get('company'),
+        observations=request.form.get('observations'),
+        alert_msg=alert_msg if alert_msg else None
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    if alert_msg:
+        flash(f'Entrada registrada com ALERTA: {alert_msg}', 'warning')
+    else:
+        flash('Entrada registrada com sucesso!', 'success')
+    return redirect(url_for('main.dashboard'))
+
+@main.route("/access/exit/<int:log_id>")
+@login_required
+def mark_exit(log_id):
+    log = AccessLog.query.get_or_404(log_id)
+    if not log.exit_time:
+        log.exit_time = datetime.now()
+        db.session.commit()
+        flash('Saída registrada com sucesso!', 'success')
+    return redirect(url_for('main.dashboard'))
+
+# --- Rotas de Gestão de Autorizações (Cadastro) ---
+
+@main.route("/management", methods=['GET', 'POST'])
+@login_required
+def management():
+    if request.method == 'POST':
+        m_type = request.form.get('type') # vehicle, trailer, driver
+        expiry = datetime.strptime(request.form.get('expiry_date'), '%Y-%m-%d').date() if request.form.get('expiry_date') else None
+        
+        if m_type == 'vehicle':
+            new_v = AuthorizedVehicle(
+                plate=request.form.get('plate').upper(),
+                vehicle_type=request.form.get('vehicle_type'),
+                company=request.form.get('company'),
+                expiry_date=expiry
+            )
+            db.session.add(new_v)
+        elif m_type == 'trailer':
+            new_t = AuthorizedTrailer(
+                plate=request.form.get('plate').upper(),
+                expiry_date=expiry
+            )
+            db.session.add(new_t)
+        elif m_type == 'driver':
+            new_d = AuthorizedDriver(
+                name=request.form.get('name'),
+                document=request.form.get('document'),
+                company=request.form.get('company'),
+                expiry_date=expiry
+            )
+            db.session.add(new_d)
+            
+        db.session.commit()
+        flash('Autorização cadastrada com sucesso!', 'success')
+        return redirect(url_for('main.management'))
+        
+    vehicles = AuthorizedVehicle.query.order_by(AuthorizedVehicle.plate).all()
+    trailers = AuthorizedTrailer.query.order_by(AuthorizedTrailer.plate).all()
+    drivers = AuthorizedDriver.query.order_by(AuthorizedDriver.name).all()
+    return render_template('main/management.html', vehicles=vehicles, trailers=trailers, drivers=drivers)
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/models.py
+==================================================
+
+from datetime import datetime
+from app import db, login_manager
+from flask_login import UserMixin
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), unique=True, nullable=False)
+    password = db.Column(db.String(60), nullable=False)
+
+# --- Novas Tabelas de Autorização (Cadastros Prévios) ---
+
+class AuthorizedVehicle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    plate = db.Column(db.String(20), unique=True, nullable=False)
+    vehicle_type = db.Column(db.String(20), nullable=False) # 'ligeiro', 'pesado', 'moto', 'pedestre'
+    company = db.Column(db.String(100))
+    expiry_date = db.Column(db.Date) # Data de validade da autorização
+
+class AuthorizedTrailer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    plate = db.Column(db.String(20), unique=True, nullable=False)
+    expiry_date = db.Column(db.Date)
+
+class AuthorizedDriver(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    document = db.Column(db.String(50), nullable=False)
+    company = db.Column(db.String(100))
+    expiry_date = db.Column(db.Date)
+
+# --- Registros de Acesso ---
+
+class AccessLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vehicle_plate = db.Column(db.String(20), nullable=False)
+    trailer_plate = db.Column(db.String(20))
+    vehicle_type = db.Column(db.String(20), nullable=False) # 'pesado', 'ligeiro', 'moto', 'pedestre'
+    driver_name = db.Column(db.String(100), nullable=False)
+    driver_doc = db.Column(db.String(50), nullable=False)
+    companion_name = db.Column(db.String(100))
+    companion_doc = db.Column(db.String(50))
+    company = db.Column(db.String(100), nullable=False)
+    entry_time = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    exit_time = db.Column(db.DateTime)
+    observations = db.Column(db.Text)
+    alert_msg = db.Column(db.String(255)) # Campo para registrar se houve aviso de vencimento
+
+    @property
+    def duration(self):
+        if self.exit_time:
+            diff = self.exit_time - self.entry_time
+        else:
+            diff = datetime.now() - self.entry_time
+        
+        days = diff.days
+        hours, remainder = divmod(diff.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        return f"{hours}h {minutes}m"
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/reports/__init__.py
+==================================================
+
+from flask import Blueprint
+
+reports = Blueprint('reports', __name__, template_folder='../templates/reports')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/reports/routes.py
+==================================================
+
+from flask import render_template, request, send_file
+from app import db
+from app.models import AccessLog
+from app.reports import reports
+from flask_login import login_required
+from datetime import datetime, timedelta
+import pandas as pd
+from io import BytesIO
+# from xhtml2pdf import pisa  # Comentado para evitar erro de importação
+
+@reports.route("/reports", methods=['GET', 'POST'])
+@login_required
+def view_reports():
+    logs = []
+    start_date_str = request.form.get('start_date')
+    end_date_str = request.form.get('end_date')
+
+    if request.method == 'POST':
+        query = AccessLog.query
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            query = query.filter(AccessLog.entry_time >= start_date)
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(AccessLog.entry_time < end_date)
+            
+        logs = query.order_by(AccessLog.entry_time.desc()).all()
+        
+        if 'export_excel' in request.form:
+            return export_excel(logs)
+        if 'export_pdf' in request.form:
+            flash('A exportação para PDF requer dependências adicionais do sistema. Use Excel por enquanto.', 'warning')
+            return redirect(url_for('reports.view_reports'))
+            
+    return render_template('reports/reports.html', logs=logs, title='Relatórios', start_date=start_date_str, end_date=end_date_str)
+
+def export_excel(logs):
+    data = [{
+        'Matrícula': log.vehicle_plate,
+        'Reboque': log.trailer_plate,
+        'Tipo Veículo': log.vehicle_type,
+        'Nome Condutor': log.driver_name,
+        'Documento Condutor': log.driver_doc,
+        'Nome Acompanhante': log.companion_name,
+        'Documento Acompanhante': log.companion_doc,
+        'Empresa': log.company,
+        'Entrada': log.entry_time.strftime('%d/%m/%Y %H:%M'),
+        'Saída': log.exit_time.strftime('%d/%m/%Y %H:%M') if log.exit_time else 'Em local',
+        'Observação': log.observations
+    } for log in logs]
+    
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Relatório de Acessos')
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name=f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# Função de PDF desativada temporariamente
+# def export_pdf(logs):
+#     ...
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/auth/login.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white text-center">
+                <h4 class="mb-0">Acesso ao Sistema</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Usuário</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Entrar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center bg-white">
+                <small class="text-muted">Não tem conta? <a href="{{ url_for('auth.register') }}">Cadastre-se</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/auth/register.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Cadastro{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white text-center">
+                <h4 class="mb-0">Novo Usuário</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Nome de Usuário</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center bg-white">
+                <small class="text-muted">Já tem conta? <a href="{{ url_for('auth.login') }}">Faça Login</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/base.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Acesso - {% block title %}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { margin-bottom: 20px; }
+        .card-stats { border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">Controle de Acesso</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.new_access') }}">Novo Registro</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.view_reports') }}">Relatórios</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Sair</a></li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">Cadastro</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/access_form.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Novo Registro{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">Registro de Entrada</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Veículo</label>
+                            <input type="text" name="vehicle_plate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Reboque</label>
+                            <input type="text" name="trailer_plate" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de Veículo</label>
+                            <select name="vehicle_type" class="form-select" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="company" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Dados do Condutor</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Condutor</label>
+                            <input type="text" name="driver_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Condutor</label>
+                            <input type="text" name="driver_doc" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Acompanhante (Opcional)</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Acompanhante</label>
+                            <input type="text" name="companion_name" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Acompanhante</label>
+                            <input type="text" name="companion_doc" class="form-control">
+                        </div>
+                        <hr>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observations" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-12 text-end">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/dashboard.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row mb-4 text-center">
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='active') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-primary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'active' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Veículos no Local</h6>
+                    <h2 class="display-6 fw-bold">{{ total_vehicles }}</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='finished') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-secondary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'finished' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Saídas Registradas</h6>
+                    <h2 class="display-6 fw-bold">...</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas no Local</h6>
+                <h2 class="display-6 fw-bold">{{ people_inside }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-warning text-dark">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas Controladas (Hoje)</h6>
+                <h2 class="display-6 fw-bold">{{ daily_people }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Lado Esquerdo: Formulário de Registro Rápido -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Registro de Entrada</h5>
+                <a href="{{ url_for('main.management') }}" class="btn btn-outline-light btn-sm">Gestão de Cadastros</a>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('main.new_access') }}" method="POST" autocomplete="off">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Matrícula Veículo</label>
+                            <input list="list_vehicles" type="text" name="vehicle_plate" id="vehicle_plate_input" class="form-control form-control-sm" required placeholder="Comece a digitar a placa...">
+                            <datalist id="list_vehicles">
+                                {% for v in auth_vehicles %}
+                                <option value="{{ v.plate }}">{{ v.company if v.company else '' }} ({{ v.vehicle_type }})</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Reboque</label>
+                            <input list="list_trailers" type="text" name="trailer_plate" class="form-control form-control-sm" placeholder="Opcional">
+                            <datalist id="list_trailers">
+                                {% for t in auth_trailers %}
+                                <option value="{{ t.plate }}">Reboque Autorizado</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Tipo</label>
+                            <select name="vehicle_type" id="vehicle_type_select" class="form-select form-select-sm" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                                <option value="moto">Moto</option>
+                                <option value="pedestre">Pedestre</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" name="company" id="company_input" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1">Nome Condutor</label>
+                            <input list="list_drivers" type="text" name="driver_name" id="driver_name_input" class="form-control form-control-sm" required placeholder="Comece a digitar o nome...">
+                            <datalist id="list_drivers">
+                                {% for d in auth_drivers %}
+                                <option value="{{ d.name }}">{{ d.document }} - {{ d.company if d.company else '' }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Documento Condutor</label>
+                            <input type="text" name="driver_doc" id="driver_doc_input" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1">Acompanhante (Nome)</label>
+                            <input type="text" name="companion_name" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Acompanhante (Doc)</label>
+                            <input type="text" name="companion_doc" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Observações</label>
+                            <textarea name="observations" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lado Direito: Tabela de Acompanhamento com Busca -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    {% if filter_type == 'active' %}Veículos no Local{% elif filter_type == 'finished' %}Registros Finalizados{% else %}Todos os Registros{% endif %}
+                </h5>
+                <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
+                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Buscar placa, condutor..." value="{{ search_query }}">
+                    <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Veículo</th>
+                                <th>Condutor</th>
+                                <th>Entrada</th>
+                                <th>Saída / Tempo</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr class="{{ 'table-warning' if log.alert_msg else '' }}">
+                                <td>
+                                    <span class="fw-bold">{{ log.vehicle_plate }}</span>
+                                    <span class="badge bg-light text-dark border ms-1">{{ log.vehicle_type }}</span>
+                                    {% if log.trailer_plate %}
+                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">R: {{ log.trailer_plate }}</span>
+                                    {% endif %}
+                                    <br><small class="text-muted">{{ log.company }}</small>
+                                </td>
+                                <td>
+                                    {{ log.driver_name }}
+                                    <br><small class="text-muted">{{ log.driver_doc }}</small>
+                                    {% if log.companion_name %}
+                                        <br><span class="text-success small">+1 Acomp.</span>
+                                    {% endif %}
+                                    {% if log.alert_msg %}
+                                        <br><span class="text-danger fw-bold" style="font-size: 0.75rem;">⚠️ {{ log.alert_msg }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+                                <td>
+                                    {% if log.exit_time %}
+                                        <span class="text-muted small">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info text-dark">{{ log.duration }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not log.exit_time %}
+                                        <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" class="btn btn-danger btn-sm">Sair</a>
+                                    {% else %}
+                                        <span class="badge bg-success">Finalizado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">Nenhum registro encontrado.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dados para o JavaScript -->
+<script id="data-auth-vehicles" type="application/json">
+    [
+        {% for v in auth_vehicles %}
+        {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company if v.company else '' }}"}{{ "," if not loop.last }}
+        {% endfor %}
+    ]
+</script>
+<script id="data-auth-drivers" type="application/json">
+    [
+        {% for d in auth_drivers %}
+        {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company if d.company else '' }}"}{{ "," if not loop.last }}
+        {% endfor %}
+    ]
+</script>
+
+<script>
+// Carregar dados dos scripts JSON
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles').textContent);
+const authDrivers = JSON.parse(document.getElementById('data-auth-drivers').textContent);
+
+// Autopreenchimento para VEÍCULO
+document.getElementById('vehicle_plate_input').addEventListener('input', function(e) {
+    const val = e.target.value.toUpperCase();
+    const match = authVehicles.find(v => v.plate === val);
+    if (match) {
+        document.getElementById('vehicle_type_select').value = match.type;
+        document.getElementById('company_input').value = match.company;
+    }
+});
+
+// Autopreenchimento para CONDUTOR
+document.getElementById('driver_name_input').addEventListener('input', function(e) {
+    const val = e.target.value;
+    const match = authDrivers.find(d => d.name === val);
+    if (match) {
+        document.getElementById('driver_doc_input').value = match.doc;
+        if (!document.getElementById('company_input').value) {
+            document.getElementById('company_input').value = match.company;
+        }
+    }
+});
+</script>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/management.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Gestão de Cadastros{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Novo Cadastro / Autorização</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Tipo de Cadastro</label>
+                            <select name="type" class="form-select form-select-sm" required id="reg_type">
+                                <option value="vehicle">Matrícula (Veículo)</option>
+                                <option value="trailer">Reboque</option>
+                                <option value="driver">Condutor</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Campos para Veículo -->
+                        <div id="vehicle_fields" class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Placa</label>
+                                <input type="text" name="plate" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Tipo de Veículo</label>
+                                <select name="vehicle_type" class="form-select form-select-sm">
+                                    <option value="ligeiro">Ligeiro</option>
+                                    <option value="pesado">Pesado</option>
+                                    <option value="moto">Moto</option>
+                                    <option value="pedestre">Pedestre</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Condutor -->
+                        <div id="driver_fields" class="row g-3 d-none">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Nome Completo</label>
+                                <input type="text" name="name" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Documento</label>
+                                <input type="text" name="document" class="form-control form-control-sm">
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" name="company" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1 text-danger fw-bold">Data de Vencimento</label>
+                            <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                        </div>
+                        
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-success">Salvar Autorização</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Lista de Autorizados</h5>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#v-tab">Veículos</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-tab">Reboques</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-tab">Condutores</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="v-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Tipo</th><th>Empresa</th><th>Validade</th></tr></thead>
+                            <tbody>
+                                {% for v in vehicles %}
+                                <tr><td>{{ v.plate }}</td><td>{{ v.vehicle_type }}</td><td>{{ v.company }}</td><td>{{ v.expiry_date.strftime('%d/%m/%Y') if v.expiry_date else '-' }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="t-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Validade</th></tr></thead>
+                            <tbody>
+                                {% for t in trailers %}
+                                <tr><td>{{ t.plate }}</td><td>{{ t.expiry_date.strftime('%d/%m/%Y') if t.expiry_date else '-' }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="d-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Nome</th><th>Documento</th><th>Validade</th></tr></thead>
+                            <tbody>
+                                {% for d in drivers %}
+                                <tr><td>{{ d.name }}</td><td>{{ d.document }}</td><td>{{ d.expiry_date.strftime('%d/%m/%Y') if d.expiry_date else '-' }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('reg_type').addEventListener('change', function(e) {
+    const vFields = document.getElementById('vehicle_fields');
+    const dFields = document.getElementById('driver_fields');
+    if (e.target.value === 'driver') {
+        vFields.classList.add('d-none');
+        dFields.classList.remove('d-none');
+    } else if (e.target.value === 'trailer') {
+        vFields.classList.add('d-none');
+        dFields.classList.add('d-none');
+    } else {
+        vFields.classList.remove('d-none');
+        dFields.classList.add('d-none');
+    }
+});
+</script>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/reports/pdf_template.html
+==================================================
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @page { size: a4 landscape; margin: 1cm; }
+        body { font-family: Helvetica, sans-serif; font-size: 10px; }
+        h1 { text-align: center; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .footer { text-align: right; margin-top: 20px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Relatório de Controle de Acesso</h1>
+    <p>Gerado em: {{ now.strftime('%d/%m/%Y %H:%M:%S') }}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Matrícula</th>
+                <th>Reboque</th>
+                <th>Condutor</th>
+                <th>Documento</th>
+                <th>Empresa</th>
+                <th>Entrada</th>
+                <th>Saída</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.vehicle_plate }}</td>
+                <td>{{ log.trailer_plate }}</td>
+                <td>{{ log.driver_name }}</td>
+                <td>{{ log.driver_doc }}</td>
+                <td>{{ log.company }}</td>
+                <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ log.exit_time.strftime('%d/%m/%Y %H:%M') if log.exit_time else 'Em local' }}</td>
+                <td>{{ log.observations }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="footer">
+        Sistema de Controle de Acesso - Vigilância
+    </div>
+</body>
+</html>
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/reports/reports.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <h4 class="mb-0">Filtro de Relatórios</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Data Início</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Data Fim</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                <button type="submit" name="export_excel" class="btn btn-success">Excel</button>
+                <button type="submit" name="export_pdf" class="btn btn-danger">PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Matrícula</th>
+                        <th>Reboque</th>
+                        <th>Condutor</th>
+                        <th>Documento</th>
+                        <th>Empresa</th>
+                        <th>Entrada</th>
+                        <th>Saída</th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.vehicle_plate }}</td>
+                        <td>{{ log.trailer_plate }}</td>
+                        <td>{{ log.driver_name }}</td>
+                        <td>{{ log.driver_doc }}</td>
+                        <td>{{ log.company }}</td>
+                        <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ log.exit_time.strftime('%d/%m/%Y %H:%M') if log.exit_time else 'Em local' }}</td>
+                        <td><small>{{ log.observations }}</small></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">Selecione um período e clique em Filtrar.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./migrate_db.py
+==================================================
+
+import psycopg2
+import os
+
+# Configurações do seu banco (mesmas do seed)
+DB_URL = "postgresql://ecclesia_user:368614011932lu@localhost:5432/access_db"
+
+def migrate():
+    try:
+        conn = psycopg2.connect(DB_URL)
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        print("--- Iniciando Migração do Banco de Dados ---")
+
+        # 1. Adicionar coluna alert_msg se não existir
+        cur.execute("""
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='access_log' AND column_name='alert_msg') THEN
+                    ALTER TABLE access_log ADD COLUMN alert_msg VARCHAR(255);
+                    RAISE NOTICE 'Coluna alert_msg adicionada.';
+                END IF;
+            END $$;
+        """)
+
+        # 2. Criar novas tabelas se não existirem
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS authorized_vehicle (
+                id SERIAL PRIMARY KEY,
+                plate VARCHAR(20) UNIQUE NOT NULL,
+                vehicle_type VARCHAR(20) NOT NULL,
+                company VARCHAR(100),
+                expiry_date DATE
+            );
+            
+            CREATE TABLE IF NOT EXISTS authorized_trailer (
+                id SERIAL PRIMARY KEY,
+                plate VARCHAR(20) UNIQUE NOT NULL,
+                expiry_date DATE
+            );
+            
+            CREATE TABLE IF NOT EXISTS authorized_driver (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) UNIQUE NOT NULL,
+                document VARCHAR(50) NOT NULL,
+                company VARCHAR(100),
+                expiry_date DATE
+            );
+        """)
+        
+        print("Tabelas de autorização verificadas/criadas.")
+        
+        cur.close()
+        conn.close()
+        print("--- Migração concluída com sucesso! ---")
+        print("Agora você pode rodar o seed_db.py novamente se desejar.")
+
+    except Exception as e:
+        print(f"Erro na migração: {e}")
+
+if __name__ == "__main__":
+    migrate()
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./requirements.txt
+==================================================
+
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-Bcrypt
+Flask-Migrate
+psycopg2-binary
+pandas
+openpyxl
+# Bibliotecas para PDF podem exigir compiladores C no sistema
+# reportlab
+# xhtml2pdf
+python-dotenv
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./run.py
+==================================================
+
+from app import create_app, db
+import os
+
+app = create_app()
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./seed_db.py
+==================================================
+
+from app import create_app, db, bcrypt
+from app.models import User, AccessLog, AuthorizedVehicle, AuthorizedDriver, AuthorizedTrailer
+from datetime import datetime, timedelta
+import os
+
+# Forçamos a URL para garantir que o seed vá para o banco correto
+os.environ['DATABASE_URL'] = "postgresql://ecclesia_user:368614011932lu@localhost:5432/access_db"
+
+app = create_app()
+
+def seed():
+    with app.app_context():
+        print("--- Inicializando Banco de Dados (access_db) ---")
+        db.create_all()
+        
+        # 1. Criar usuário administrador inicial
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin = User(username='admin', password=hashed_pw)
+            db.session.add(admin)
+            print("Usuário 'admin' criado (Senha: admin123)")
+        
+        # 2. Criar alguns registros de exemplo de autorização (vencidos e válidos)
+        today = datetime.now().date()
+        
+        # Veículo Válido
+        if not AuthorizedVehicle.query.filter_by(plate="VIG-2026").first():
+            v1 = AuthorizedVehicle(plate="VIG-2026", vehicle_type="ligeiro", company="Segurança Total", expiry_date=today + timedelta(days=30))
+            db.session.add(v1)
+            
+        # Veículo Vencido
+        if not AuthorizedVehicle.query.filter_by(plate="OLD-1990").first():
+            v2 = AuthorizedVehicle(plate="OLD-1990", vehicle_type="pesado", company="Transportes Antigos", expiry_date=today - timedelta(days=5))
+            db.session.add(v2)
+            
+        # Condutor Autorizado
+        if not AuthorizedDriver.query.filter_by(name="Lucas Vigilante").first():
+            d1 = AuthorizedDriver(name="Lucas Vigilante", document="RG-123456", company="Vigilância Ativa", expiry_date=today + timedelta(days=365))
+            db.session.add(d1)
+
+        db.session.commit()
+        print("--- Seed concluído com sucesso! ---")
+
+if __name__ == "__main__":
+    seed()
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./setup_db.py
+==================================================
+
+import psycopg2
+from psycopg2 import sql
+import os
+
+# Configurações do seu PostgreSQL (Ajuste se necessário)
+DB_ADMIN_USER = "postgres"  # Usuário administrador padrão
+DB_ADMIN_PASS = "postgres"  # Senha do administrador
+DB_HOST = "localhost"
+DB_PORT = "5432"
+
+# Dados do novo banco e usuário para a aplicação
+APP_DB_NAME = "access_db"
+APP_DB_USER = "access_user"
+APP_DB_PASS = "access_pass123"
+
+def setup_postgresql():
+    try:
+        # 1. Conectar ao PostgreSQL como administrador
+        conn = psycopg2.connect(
+            user=DB_ADMIN_USER,
+            password=DB_ADMIN_PASS,
+            host=DB_HOST,
+            port=DB_PORT,
+            database="postgres" # Conecta ao banco padrão para criar o novo
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        print(f"--- Iniciando configuração do banco de dados ---")
+
+        # 2. Criar o Usuário se não existir
+        cur.execute(sql.SQL("SELECT 1 FROM pg_roles WHERE rolname = %s"), [APP_DB_USER])
+        if not cur.fetchone():
+            cur.execute(sql.SQL("CREATE USER {} WITH PASSWORD %s").format(sql.Identifier(APP_DB_USER)), [APP_DB_PASS])
+            print(f"Usuário '{APP_DB_USER}' criado.")
+        else:
+            print(f"Usuário '{APP_DB_USER}' já existe.")
+
+        # 3. Criar o Banco de Dados se não existir
+        cur.execute(sql.SQL("SELECT 1 FROM pg_database WHERE datname = %s"), [APP_DB_NAME])
+        if not cur.fetchone():
+            cur.execute(sql.SQL("CREATE DATABASE {} OWNER {}").format(
+                sql.Identifier(APP_DB_NAME), 
+                sql.Identifier(APP_DB_USER)
+            ))
+            print(f"Banco de dados '{APP_DB_NAME}' criado.")
+        else:
+            print(f"Banco de dados '{APP_DB_NAME}' já existe.")
+
+        cur.close()
+        conn.close()
+        print(f"--- Configuração concluída com sucesso! ---")
+        print(f"\nSua URL de conexão será: postgresql://{APP_DB_USER}:{APP_DB_PASS}@{DB_HOST}:{DB_PORT}/{APP_DB_NAME}")
+        
+    except Exception as e:
+        print(f"Erro ao configurar o banco: {e}")
+        print("\nVerifique se o PostgreSQL está rodando e se as credenciais de administrador no topo deste script estão corretas.")
+
+if __name__ == "__main__":
+    setup_postgresql()
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./test_db.py
+==================================================
+
+from app import create_app, db
+from app.models import User
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print("Banco de dados inicializado com sucesso!")
+
+==================================================
+
+✅ Fim do cat_all.sh - Tudo enviado!
+==================================================
+          ESTRUTURA COMPLETA DO PROJETO
+==================================================
+
+=== TREE (estrutura de pastas) ===
+.
+├── app
+│   ├── auth
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── main
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── reports
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── static
+│   │   ├── css
+│   │   ├── js
+│   │   ├── logo.png
+│   │   └── logo_resized.png
+│   ├── templates
+│   │   ├── auth
+│   │   │   ├── login.html
+│   │   │   └── register.html
+│   │   ├── main
+│   │   │   ├── access_form.html
+│   │   │   ├── dashboard.html
+│   │   │   ├── edit_authorized.html
+│   │   │   └── management.html
+│   │   ├── reports
+│   │   │   ├── pdf_template.html
+│   │   │   └── reports.html
+│   │   └── base.html
+│   ├── __init__.py
+│   └── models.py
+├── instance
+├── cat_all.sh
+├── migrate_db.py
+├── requirements.txt
+├── run.py
+├── seed_db.py
+├── setup_db.py
+├── ta_ai.txt
+└── test_db.py
+
+13 directories, 27 files
+
+==================================================
+          ARQUIVOS E SEU CONTEÚDO
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/auth/__init__.py
+==================================================
+
+from flask import Blueprint
+
+auth = Blueprint('auth', __name__, template_folder='../templates/auth')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/auth/routes.py
+==================================================
+
+from flask import render_template, url_for, flash, redirect, request
+from app import db, bcrypt
+from app.models import User
+from app.auth import auth
+from flask_login import login_user, current_user, logout_user, login_required
+
+@auth.route("/register", methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if not username or not password:
+            flash('Por favor, preencha todos os campos.', 'warning')
+            return redirect(url_for('auth.register'))
+        
+        user_exists = User.query.filter_by(username=username).first()
+        if user_exists:
+            flash('Este nome de usuário já está em uso.', 'danger')
+            return redirect(url_for('auth.register'))
+
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user = User(username=username, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Sua conta foi criada! Agora você pode fazer o login.', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/register.html', title='Cadastro')
+
+@auth.route("/login", methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and bcrypt.check_password_hash(user.password, password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
+        else:
+            flash('Falha no login. Verifique o usuário e a senha.', 'danger')
+    return render_template('auth/login.html', title='Login')
+
+@auth.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('auth.login'))
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/__init__.py
+==================================================
+
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
+from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
+import os
+
+db = SQLAlchemy()
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.login_message_category = 'info'
+bcrypt = Bcrypt()
+migrate = Migrate()
+
+def create_app():
+    app = Flask(__name__)
+    
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chave-secreta-padrao')
+    # Nota: Em um ambiente real, o usuário deve configurar a URL do Postgres. 
+    # Vou usar SQLite por padrão para garantir que funcione no sandbox se o Postgres não estiver ativo, 
+    # mas o código está pronto para Postgres.
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    db.init_app(app)
+    login_manager.init_app(app)
+    bcrypt.init_app(app)
+    migrate.init_app(app, db)
+
+    from app.auth.routes import auth
+    from app.main.routes import main
+    from app.reports.routes import reports
+
+    app.register_blueprint(auth)
+    app.register_blueprint(main)
+    app.register_blueprint(reports)
+
+    return app
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/main/__init__.py
+==================================================
+
+from flask import Blueprint
+
+main = Blueprint('main', __name__, template_folder='../templates/main')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/main/routes.py
+==================================================
+
+from flask import render_template, url_for, flash, redirect, request
+from app import db
+from app.models import AccessLog, AuthorizedVehicle, AuthorizedTrailer, AuthorizedDriver
+from app.main import main
+from flask_login import login_required
+from datetime import datetime
+
+# ====================== DASHBOARD ======================
+@main.route("/")
+@main.route("/dashboard")
+@login_required
+def dashboard():
+    filter_type = request.args.get('filter', 'active')
+    search_query = request.args.get('search', '').strip()
+    
+    query = AccessLog.query
+
+    if search_query:
+        query = query.filter(
+            (AccessLog.vehicle_plate.ilike(f'%{search_query}%')) |
+            (AccessLog.driver_name.ilike(f'%{search_query}%')) |
+            (AccessLog.company.ilike(f'%{search_query}%'))
+        )
+
+    if filter_type == 'active':
+        logs = query.filter(AccessLog.exit_time == None).order_by(AccessLog.entry_time.desc()).all()
+    elif filter_type == 'finished':
+        logs = query.filter(AccessLog.exit_time != None).order_by(AccessLog.exit_time.desc()).all()
+    else:
+        logs = query.order_by(AccessLog.entry_time.desc()).all()
+
+    active_logs = AccessLog.query.filter(AccessLog.exit_time == None).all()
+    total_vehicles_inside = len(active_logs)
+    people_inside = sum(1 + (1 if log.companion_name else 0) for log in active_logs)
+
+    today = datetime.now().date()
+    today_movements = AccessLog.query.filter(
+        (db.func.date(AccessLog.entry_time) == today) | 
+        (db.func.date(AccessLog.exit_time) == today)
+    ).all()
+    daily_people = sum(1 + (1 if log.companion_name else 0) for log in today_movements)
+
+    auth_vehicles = AuthorizedVehicle.query.all()
+    auth_trailers = AuthorizedTrailer.query.all()
+    auth_drivers = AuthorizedDriver.query.all()
+
+    return render_template('main/dashboard.html', 
+                           logs=logs, 
+                           total_vehicles=total_vehicles_inside,
+                           people_inside=people_inside,
+                           daily_people=daily_people,
+                           auth_vehicles=auth_vehicles,
+                           auth_trailers=auth_trailers,
+                           auth_drivers=auth_drivers,
+                           filter_type=filter_type,
+                           search_query=search_query)
+
+
+# ====================== REGISTRO DE ACESSO ======================
+@main.route("/access/new", methods=['POST'])
+@login_required
+def new_access():
+    vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
+    trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
+    driver_name = request.form.get('driver_name', '').strip()
+
+    alert_msg = ""
+    today = datetime.now().date()
+
+    auth_v = AuthorizedVehicle.query.filter_by(plate=vehicle_plate).first()
+    if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
+        alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
+
+    if trailer_plate:
+        auth_t = AuthorizedTrailer.query.filter_by(plate=trailer_plate).first()
+        if auth_t and auth_t.expiry_date and auth_t.expiry_date < today:
+            alert_msg += f"REBOQUE VENCIDO ({auth_t.expiry_date.strftime('%d/%m/%Y')}). "
+
+    auth_d = AuthorizedDriver.query.filter_by(name=driver_name).first()
+    if auth_d and auth_d.expiry_date and auth_d.expiry_date < today:
+        alert_msg += f"CONDUTOR VENCIDO ({auth_d.expiry_date.strftime('%d/%m/%Y')}). "
+
+    log = AccessLog(
+        vehicle_plate=vehicle_plate,
+        trailer_plate=trailer_plate,
+        vehicle_type=request.form.get('vehicle_type'),
+        driver_name=driver_name,
+        driver_doc=request.form.get('driver_doc'),
+        companion_name=request.form.get('companion_name'),
+        companion_doc=request.form.get('companion_doc'),
+        company=request.form.get('company'),
+        observations=request.form.get('observations'),
+        alert_msg=alert_msg if alert_msg else None
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    if alert_msg:
+        flash(f'Entrada registrada com ALERTA: {alert_msg}', 'warning')
+    else:
+        flash('Entrada registrada com sucesso!', 'success')
+    
+    return redirect(url_for('main.dashboard'))
+
+
+@main.route("/access/exit/<int:log_id>")
+@login_required
+def mark_exit(log_id):
+    log = AccessLog.query.get_or_404(log_id)
+    if not log.exit_time:
+        log.exit_time = datetime.now()
+        db.session.commit()
+        flash('Saída registrada com sucesso!', 'success')
+    return redirect(url_for('main.dashboard'))
+
+
+# ====================== GESTÃO (Lista + Novo) ======================
+@main.route("/management", methods=['GET', 'POST'])
+@login_required
+def management():
+    if request.method == 'POST':
+        m_type = request.form.get('type')
+        expiry_str = request.form.get('expiry_date')
+        expiry = datetime.strptime(expiry_str, '%Y-%m-%d').date() if expiry_str else None
+
+        if m_type == 'vehicle':
+            new_item = AuthorizedVehicle(
+                plate=request.form.get('plate', '').upper().strip(),
+                vehicle_type=request.form.get('vehicle_type'),
+                company=request.form.get('company'),
+                expiry_date=expiry
+            )
+        elif m_type == 'trailer':
+            new_item = AuthorizedTrailer(
+                plate=request.form.get('plate', '').upper().strip(),
+                company=request.form.get('company'),
+                expiry_date=expiry
+            )
+        elif m_type == 'driver':
+            new_item = AuthorizedDriver(
+                name=request.form.get('name'),
+                document=request.form.get('document'),
+                company=request.form.get('company'),
+                expiry_date=expiry
+            )
+        else:
+            flash('Tipo inválido.', 'danger')
+            return redirect(url_for('main.management'))
+
+        db.session.add(new_item)
+        db.session.commit()
+        flash('Autorização cadastrada com sucesso!', 'success')
+        return redirect(url_for('main.management'))
+
+    vehicles = AuthorizedVehicle.query.order_by(AuthorizedVehicle.plate).all()
+    trailers = AuthorizedTrailer.query.order_by(AuthorizedTrailer.plate).all()
+    drivers = AuthorizedDriver.query.order_by(AuthorizedDriver.name).all()
+
+    return render_template('main/management.html', 
+                           vehicles=vehicles, 
+                           trailers=trailers, 
+                           drivers=drivers)
+
+
+# ====================== EDIÇÃO COMPLETA ======================
+@main.route("/management/edit/<string:item_type>/<int:id>", methods=['GET', 'POST'])
+@login_required
+def edit_authorized(item_type, id):
+    if item_type == 'vehicle':
+        item = AuthorizedVehicle.query.get_or_404(id)
+        title = "Editar Veículo"
+    elif item_type == 'trailer':
+        item = AuthorizedTrailer.query.get_or_404(id)
+        title = "Editar Reboque"
+    elif item_type == 'driver':
+        item = AuthorizedDriver.query.get_or_404(id)
+        title = "Editar Condutor"
+    else:
+        flash('Tipo inválido.', 'danger')
+        return redirect(url_for('main.management'))
+
+    if request.method == 'POST':
+        expiry_str = request.form.get('expiry_date')
+        expiry = datetime.strptime(expiry_str, '%Y-%m-%d').date() if expiry_str else None
+
+        if item_type == 'vehicle':
+            item.plate = request.form.get('plate', '').upper().strip()
+            item.vehicle_type = request.form.get('vehicle_type')
+            item.company = request.form.get('company')
+            item.expiry_date = expiry
+        elif item_type == 'trailer':
+            item.plate = request.form.get('plate', '').upper().strip()
+            item.company = request.form.get('company')
+            item.expiry_date = expiry
+        elif item_type == 'driver':
+            item.name = request.form.get('name')
+            item.document = request.form.get('document')
+            item.company = request.form.get('company')
+            item.expiry_date = expiry
+
+        db.session.commit()
+        flash(f'{title} atualizado com sucesso!', 'success')
+        return redirect(url_for('main.management'))
+
+    # GET - mostra o formulário preenchido
+    return render_template('main/edit_authorized.html', 
+                           item=item, 
+                           item_type=item_type, 
+                           title=title)
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/models.py
+==================================================
+
+from datetime import datetime
+from app import db, login_manager
+from flask_login import UserMixin
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), unique=True, nullable=False)
+    password = db.Column(db.String(60), nullable=False)
+
+# ==================== TABELAS DE AUTORIZAÇÃO ====================
+
+class AuthorizedVehicle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    plate = db.Column(db.String(20), unique=True, nullable=False)
+    vehicle_type = db.Column(db.String(20), nullable=False)
+    company = db.Column(db.String(100))
+    expiry_date = db.Column(db.Date)
+
+    def __repr__(self):
+        return f"<AuthorizedVehicle {self.plate}>"
+
+
+class AuthorizedTrailer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    plate = db.Column(db.String(20), unique=True, nullable=False)
+    company = db.Column(db.String(100))      # Adicionado para ficar consistente
+    expiry_date = db.Column(db.Date)
+
+    def __repr__(self):
+        return f"<AuthorizedTrailer {self.plate}>"
+
+
+class AuthorizedDriver(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    document = db.Column(db.String(50), nullable=False)
+    company = db.Column(db.String(100))
+    expiry_date = db.Column(db.Date)
+
+    def __repr__(self):
+        return f"<AuthorizedDriver {self.name}>"
+
+# ==================== REGISTRO DE ACESSO ====================
+
+class AccessLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vehicle_plate = db.Column(db.String(20), nullable=False)
+    trailer_plate = db.Column(db.String(20))
+    vehicle_type = db.Column(db.String(20), nullable=False)
+    driver_name = db.Column(db.String(100), nullable=False)
+    driver_doc = db.Column(db.String(50), nullable=False)
+    companion_name = db.Column(db.String(100))
+    companion_doc = db.Column(db.String(50))
+    company = db.Column(db.String(100), nullable=False)
+    entry_time = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    exit_time = db.Column(db.DateTime)
+    observations = db.Column(db.Text)
+    alert_msg = db.Column(db.String(255))
+
+    @property
+    def duration(self):
+        if self.exit_time:
+            diff = self.exit_time - self.entry_time
+        else:
+            diff = datetime.now() - self.entry_time
+        
+        days = diff.days
+        hours, remainder = divmod(diff.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        return f"{hours}h {minutes}m"
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/reports/__init__.py
+==================================================
+
+from flask import Blueprint
+
+reports = Blueprint('reports', __name__, template_folder='../templates/reports')
+
+from . import routes
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/reports/routes.py
+==================================================
+
+from flask import render_template, request, send_file, flash, redirect, url_for, current_app, render_template_string
+from app import db
+from app.models import AccessLog
+from app.reports import reports
+from flask_login import login_required
+from datetime import datetime, timedelta
+import pandas as pd
+from io import BytesIO
+import os
+from PIL import Image
+
+# Mapeamento seguro para ordenação
+SORT_MAPPING = {
+    'vehicle_plate': AccessLog.vehicle_plate,
+    'trailer_plate': AccessLog.trailer_plate,
+    'driver_name': AccessLog.driver_name,
+    'company': AccessLog.company,
+    'entry_time': AccessLog.entry_time,
+    'exit_time': AccessLog.exit_time,
+    'vehicle_type': AccessLog.vehicle_type,
+}
+
+@reports.route("/reports", methods=['GET', 'POST'])
+@login_required
+def view_reports():
+    # Ordenação
+    sort_by = request.args.get('sort_by', 'entry_time')
+    sort_dir = request.args.get('sort_dir', 'desc')
+
+    if sort_by not in SORT_MAPPING:
+        sort_by = 'entry_time'
+    if sort_dir not in ['asc', 'desc']:
+        sort_dir = 'desc'
+
+    # Filtros de data
+    start_date_str = request.form.get('start_date') or request.args.get('start_date')
+    end_date_str = request.form.get('end_date') or request.args.get('end_date')
+
+    query = AccessLog.query
+
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        query = query.filter(AccessLog.entry_time >= start_date)
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+        query = query.filter(AccessLog.entry_time < end_date)
+
+    # Aplicar ordenação
+    order_column = SORT_MAPPING[sort_by]
+    query = query.order_by(order_column.desc() if sort_dir == 'desc' else order_column.asc())
+
+    logs = query.all()
+
+    # Exportações
+    if request.method == 'POST':
+        if 'export_excel' in request.form:
+            return export_excel(logs)
+        if 'export_pdf' in request.form:
+            return export_pdf(logs, start_date=start_date_str, end_date=end_date_str)
+
+    return render_template('reports/reports.html',
+                           logs=logs,
+                           title='Relatórios',
+                           start_date=start_date_str,
+                           end_date=end_date_str,
+                           sort_by=sort_by,
+                           sort_dir=sort_dir)
+
+
+def export_excel(logs):
+    data = [{
+        'Matrícula': log.vehicle_plate,
+        'Reboque': log.trailer_plate or '',
+        'Tipo Veículo': log.vehicle_type,
+        'Condutor': log.driver_name,
+        'Doc. Condutor': log.driver_doc,
+        'Acompanhante': log.companion_name or '',
+        'Doc. Acomp.': log.companion_doc or '',
+        'Empresa': log.company,
+        'Entrada': log.entry_time.strftime('%d/%m/%Y %H:%M'),
+        'Saída': log.exit_time.strftime('%d/%m/%Y %H:%M') if log.exit_time else 'Em local',
+        'Observação': log.observations or '',
+        'Alerta': log.alert_msg or ''
+    } for log in logs]
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Relatório de Acessos')
+    output.seek(0)
+
+    filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def export_pdf(logs, start_date=None, end_date=None):
+    """Gera PDF com logo redimensionada corretamente"""
+    from xhtml2pdf import pisa
+    from io import BytesIO
+    from PIL import Image
+
+    # Caminho da logo original e redimensionada
+    logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
+    resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
+
+    # Redimensiona a logo (máximo 220x60)
+    try:
+        if os.path.exists(logo_path):
+            img = Image.open(logo_path).convert("RGBA")
+            img.thumbnail((220, 60), Image.Resampling.LANCZOS)
+            img.save(resized_logo_path, format='PNG', optimize=True)
+            logo_to_use = resized_logo_path
+        else:
+            logo_to_use = ""
+    except Exception:
+        logo_to_use = ""
+
+    try:
+        html_content = open('app/templates/reports/pdf_template.html', encoding='utf-8').read()
+        
+        html = render_template_string(
+            html_content,
+            logs=logs,
+            now=datetime.now(),
+            start_date=start_date,
+            end_date=end_date,
+            logo_path=logo_to_use
+        )
+
+        output = BytesIO()
+        pdf = pisa.pisaDocument(BytesIO(html.encode("UTF-8")), dest=output)
+
+        if pdf.err:
+            flash('Erro ao gerar o PDF.', 'danger')
+            return redirect(url_for('reports.view_reports'))
+
+        output.seek(0)
+        filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+
+        return send_file(output, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+    except Exception as e:
+        flash(f'Erro ao gerar PDF: {str(e)}', 'danger')
+        return redirect(url_for('reports.view_reports'))
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/auth/login.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white text-center">
+                <h4 class="mb-0">Acesso ao Sistema</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Usuário</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Entrar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center bg-white">
+                <small class="text-muted">Não tem conta? <a href="{{ url_for('auth.register') }}">Cadastre-se</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/auth/register.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Cadastro{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white text-center">
+                <h4 class="mb-0">Novo Usuário</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Nome de Usuário</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center bg-white">
+                <small class="text-muted">Já tem conta? <a href="{{ url_for('auth.login') }}">Faça Login</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/base.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Acesso - {% block title %}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { margin-bottom: 20px; }
+        .card-stats { border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">Controle de Acesso</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <!--<li class="nav-item"><a class="nav-link" href="{{ url_for('main.new_access') }}">Novo Registro</a></li>-->
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.view_reports') }}">Relatórios</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Sair</a></li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">Cadastro</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/access_form.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Novo Registro{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">Registro de Entrada</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Veículo</label>
+                            <input type="text" name="vehicle_plate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Matrícula do Reboque</label>
+                            <input type="text" name="trailer_plate" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de Veículo</label>
+                            <select name="vehicle_type" class="form-select" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="company" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Dados do Condutor</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Condutor</label>
+                            <input type="text" name="driver_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Condutor</label>
+                            <input type="text" name="driver_doc" class="form-control" required>
+                        </div>
+                        <hr>
+                        <h5>Acompanhante (Opcional)</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Nome do Acompanhante</label>
+                            <input type="text" name="companion_name" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Documento do Acompanhante</label>
+                            <input type="text" name="companion_doc" class="form-control">
+                        </div>
+                        <hr>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea name="observations" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-12 text-end">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/dashboard.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row mb-4 text-center">
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='active') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-primary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'active' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Veículos no Local</h6>
+                    <h2 class="display-6 fw-bold">{{ total_vehicles }}</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='finished') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-secondary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'finished' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Saídas Registradas</h6>
+                    <h2 class="display-6 fw-bold">...</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas no Local</h6>
+                <h2 class="display-6 fw-bold">{{ people_inside }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-warning text-dark">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas Controladas (Hoje)</h6>
+                <h2 class="display-6 fw-bold">{{ daily_people }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Lado Esquerdo: Formulário de Registro Rápido -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Registro de Entrada</h5>
+                <a href="{{ url_for('main.management') }}" class="btn btn-outline-light btn-sm">Novo Cadastro</a>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('main.new_access') }}" method="POST" autocomplete="off">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Matrícula do Veículo</label>
+                            <input list="list_vehicles" 
+                                   type="text" 
+                                   name="vehicle_plate" 
+                                   id="vehicle_plate_input" 
+                                   class="form-control form-control-sm" 
+                                   required 
+                                   placeholder="Ex: VIG-2026"
+                                   style="text-transform: uppercase;">
+                            <datalist id="list_vehicles">
+                                {% for v in auth_vehicles %}
+                                <option value="{{ v.plate }}">{{ v.plate }} — {{ v.company or 'Sem empresa' }} ({{ v.vehicle_type }})</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Reboque (Opcional)</label>
+                            <input list="list_trailers" 
+                                   type="text" 
+                                   name="trailer_plate" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Ex: REB-1234"
+                                   style="text-transform: uppercase;">
+                            <datalist id="list_trailers">
+                                {% for t in auth_trailers %}
+                                <option value="{{ t.plate }}">{{ t.plate }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Tipo de Veículo</label>
+                            <select name="vehicle_type" id="vehicle_type_select" class="form-select form-select-sm" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                                <option value="moto">Moto</option>
+                                <option value="pedestre">Pedestre</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" 
+                                   name="company" 
+                                   id="company_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                        </div>
+
+                        <!-- Dados do Condutor -->
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1">Nome do Condutor</label>
+                            <input list="list_drivers" 
+                                   type="text" 
+                                   name="driver_name" 
+                                   id="driver_name_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                            <datalist id="list_drivers">
+                                {% for d in auth_drivers %}
+                                <option value="{{ d.name }}">{{ d.name }} — {{ d.document }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Documento do Condutor</label>
+                            <input type="text" 
+                                   name="driver_doc" 
+                                   id="driver_doc_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                        </div>
+
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1">Acompanhante (Opcional)</label>
+                            <input type="text" name="companion_name" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Documento do Acompanhante</label>
+                            <input type="text" name="companion_doc" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Observações</label>
+                            <textarea name="observations" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lado Direito: Tabela -->
+    <div class="col-md-8">
+        <!-- ... (mantive a tabela igual, só corrigi pequenos detalhes visuais) ... -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    {% if filter_type == 'active' %}Veículos no Local{% elif filter_type == 'finished' %}Registros Finalizados{% else %}Todos os Registros{% endif %}
+                </h5>
+                <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
+                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Buscar placa, condutor..." value="{{ search_query }}">
+                    <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Veículo</th>
+                                <th>Condutor</th>
+                                <th>Entrada</th>
+                                <th>Saída / Tempo</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr class="{{ 'table-warning' if log.alert_msg else '' }}">
+                                <td>
+                                    <span class="fw-bold">{{ log.vehicle_plate }}</span>
+                                    <span class="badge bg-light text-dark border ms-1">{{ log.vehicle_type }}</span>
+                                    {% if log.trailer_plate %}
+                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">R: {{ log.trailer_plate }}</span>
+                                    {% endif %}
+                                    <br><small class="text-muted">{{ log.company }}</small>
+                                </td>
+                                <td>
+                                    {{ log.driver_name }}
+                                    <br><small class="text-muted">{{ log.driver_doc }}</small>
+                                    {% if log.companion_name %}
+                                        <br><span class="text-success small">+1 Acomp.</span>
+                                    {% endif %}
+                                    {% if log.alert_msg %}
+                                        <br><span class="text-danger fw-bold" style="font-size: 0.75rem;">⚠️ {{ log.alert_msg }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+                                <td>
+                                    {% if log.exit_time %}
+                                        <span class="text-muted small">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info text-dark">{{ log.duration }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not log.exit_time %}
+                                        <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" class="btn btn-danger btn-sm">Registrar Saída</a>
+                                    {% else %}
+                                        <span class="badge bg-success">Finalizado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">Nenhum registro encontrado.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dados para JavaScript -->
+<script id="data-auth-vehicles" type="application/json">
+[
+    {% for v in auth_vehicles %}
+    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+
+<script id="data-auth-drivers" type="application/json">
+[
+    {% for d in auth_drivers %}
+    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+
+<script>
+// === AUTOPREENCHIMENTO MELHORADO ===
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles').textContent || '[]');
+const authDrivers  = JSON.parse(document.getElementById('data-auth-drivers').textContent || '[]');
+
+const vehicleInput = document.getElementById('vehicle_plate_input');
+const companyInput = document.getElementById('company_input');
+const typeSelect   = document.getElementById('vehicle_type_select');
+
+vehicleInput.addEventListener('input', function() {
+    const val = this.value.trim().toUpperCase();
+    this.value = val;                    // Força uppercase
+
+    const match = authVehicles.find(v => v.plate === val);
+    
+    if (match) {
+        companyInput.value = match.company || '';
+        typeSelect.value = match.type || 'ligeiro';
+    }
+});
+
+// Condutor (mantido igual, mas mais limpo)
+document.getElementById('driver_name_input').addEventListener('input', function() {
+    const val = this.value.trim();
+    const match = authDrivers.find(d => d.name === val);
+    
+    if (match) {
+        document.getElementById('driver_doc_input').value = match.doc || '';
+        // Só preenche empresa se ainda estiver vazia
+        if (!companyInput.value) {
+            companyInput.value = match.company || '';
+        }
+    }
+});
+</script>
+{% endblock %}
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/edit_authorized.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">{{ title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+
+                        {% if item_type == 'vehicle' or item_type == 'trailer' %}
+                            <div class="col-12">
+                                <label class="form-label">Placa / Matrícula</label>
+                                <input type="text" name="plate" class="form-control text-uppercase" 
+                                       value="{{ item.plate }}" required>
+                            </div>
+                        {% endif %}
+
+                        {% if item_type == 'vehicle' %}
+                            <div class="col-12">
+                                <label class="form-label">Tipo de Veículo</label>
+                                <select name="vehicle_type" class="form-select" required>
+                                    <option value="ligeiro" {{ 'selected' if item.vehicle_type == 'ligeiro' }}>Ligeiro</option>
+                                    <option value="pesado" {{ 'selected' if item.vehicle_type == 'pesado' }}>Pesado</option>
+                                    <option value="moto" {{ 'selected' if item.vehicle_type == 'moto' }}>Moto</option>
+                                    <option value="pedestre" {{ 'selected' if item.vehicle_type == 'pedestre' }}>Pedestre</option>
+                                </select>
+                            </div>
+                        {% endif %}
+
+                        {% if item_type == 'driver' %}
+                            <div class="col-12">
+                                <label class="form-label">Nome Completo</label>
+                                <input type="text" name="name" class="form-control" 
+                                       value="{{ item.name }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Documento</label>
+                                <input type="text" name="document" class="form-control" 
+                                       value="{{ item.document }}" required>
+                            </div>
+                        {% endif %}
+
+                        <div class="col-12">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="company" class="form-control" 
+                                   value="{{ item.company or '' }}">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-danger fw-bold">Data de Vencimento</label>
+                            <input type="date" name="expiry_date" class="form-control" 
+                                   value="{{ item.expiry_date.strftime('%Y-%m-%d') if item.expiry_date else '' }}" required>
+                        </div>
+
+                        <div class="col-12 d-flex gap-2">
+                            <a href="{{ url_for('main.management') }}" class="btn btn-secondary flex-fill">Cancelar</a>
+                            <button type="submit" class="btn btn-success flex-fill">Salvar Alterações</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/main/management.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Gestão de Cadastros{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <!-- Formulário de Novo Cadastro -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Novo Cadastro / Autorização</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Tipo de Cadastro</label>
+                            <select name="type" class="form-select form-select-sm" required id="reg_type">
+                                <option value="vehicle">Veículo</option>
+                                <option value="trailer">Reboque</option>
+                                <option value="driver">Condutor</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos para Veículo -->
+                        <div id="vehicle_fields" class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Placa / Matrícula</label>
+                                <input type="text" name="plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: ABC-1234" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Tipo de Veículo</label>
+                                <select name="vehicle_type" class="form-select form-select-sm" required>
+                                    <option value="ligeiro">Ligeiro</option>
+                                    <option value="pesado">Pesado</option>
+                                    <option value="moto">Moto</option>
+                                    <option value="pedestre">Pedestre</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Reboque -->
+                        <div id="trailer_fields" class="row g-3 d-none">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Placa / Matrícula do Reboque</label>
+                                <input type="text" name="plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: REB-5678" required>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Condutor -->
+                        <div id="driver_fields" class="row g-3 d-none">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Nome Completo</label>
+                                <input type="text" name="name" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Documento (RG/CPF/CNH)</label>
+                                <input type="text" name="document" class="form-control form-control-sm" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" name="company" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1 text-danger fw-bold">Data de Vencimento</label>
+                            <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                        </div>
+                        
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-success">Salvar Autorização</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Autorizados -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Lista de Autorizados</h5>
+                <small class="text-muted">Clique em ✏️ para editar</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#v-tab">Veículos</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-tab">Reboques</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-tab">Condutores</button></li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Veículos -->
+                    <div class="tab-pane fade show active" id="v-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Tipo</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for v in vehicles %}
+                                <tr>
+                                    <td><strong>{{ v.plate }}</strong></td>
+                                    <td>{{ v.vehicle_type }}</td>
+                                    <td>{{ v.company or '-' }}</td>
+                                    <td>{{ v.expiry_date.strftime('%d/%m/%Y') if v.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='vehicle', id=v.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Reboques -->
+                    <div class="tab-pane fade" id="t-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for t in trailers %}
+                                <tr>
+                                    <td><strong>{{ t.plate }}</strong></td>
+                                    <td>{{ t.company or '-' }}</td>
+                                    <td>{{ t.expiry_date.strftime('%d/%m/%Y') if t.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='trailer', id=t.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Condutores -->
+                    <div class="tab-pane fade" id="d-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Nome</th><th>Documento</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for d in drivers %}
+                                <tr>
+                                    <td><strong>{{ d.name }}</strong></td>
+                                    <td>{{ d.document }}</td>
+                                    <td>{{ d.company or '-' }}</td>
+                                    <td>{{ d.expiry_date.strftime('%d/%m/%Y') if d.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='driver', id=d.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Controle de campos do formulário de cadastro
+document.getElementById('reg_type').addEventListener('change', function(e) {
+    const vehicleFields = document.getElementById('vehicle_fields');
+    const trailerFields = document.getElementById('trailer_fields');
+    const driverFields  = document.getElementById('driver_fields');
+
+    vehicleFields.classList.add('d-none');
+    trailerFields.classList.add('d-none');
+    driverFields.classList.add('d-none');
+
+    if (e.target.value === 'vehicle') {
+        vehicleFields.classList.remove('d-none');
+    } else if (e.target.value === 'trailer') {
+        trailerFields.classList.remove('d-none');
+    } else if (e.target.value === 'driver') {
+        driverFields.classList.remove('d-none');
+    }
+});
+</script>
+{% endblock %}
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/reports/pdf_template.html
+==================================================
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1.2cm;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9.5pt;
+            color: #333;
+            background-color: white;
+        }
+        h1 {
+            text-align: center;
+            color: #374151;
+            font-size: 18pt;
+            margin-bottom: 8px;
+        }
+        .header-info {
+            text-align: center;
+            font-size: 10pt;
+            margin-bottom: 20px;
+            color: #555;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #6b7280;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #374151;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        .em-local {
+            color: #e11d48;
+            font-weight: bold;
+        }
+        .logo {
+            position: absolute;
+            top: 12px;
+            left: 20px;
+            max-height: 55px;
+            max-width: 220px;
+            background-color: white;
+            padding: 4px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+        }
+        .footer {
+            position: fixed;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8pt;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <!-- Logo ajustada -->
+    <img src="{{ logo_path }}" class="logo" onerror="this.style.display='none';">
+
+    <h1>Relatório de Controle de Acesso</h1>
+    <div class="header-info">
+        Período: {% if start_date %}{{ start_date }} até {% endif %}{{ end_date or 'Atual' }}<br>
+        Gerado em: {{ now.strftime('%d/%m/%Y às %H:%M:%S') }}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Matrícula</th>
+                <th>Reboque</th>
+                <th>Tipo</th>
+                <th>Condutor</th>
+                <th>Documento</th>
+                <th>Empresa</th>
+                <th>Entrada</th>
+                <th>Saída</th>
+                <th>Duração</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td><strong>{{ log.vehicle_plate }}</strong></td>
+                <td>{{ log.trailer_plate or '-' }}</td>
+                <td>{{ log.vehicle_type }}</td>
+                <td>{{ log.driver_name }}</td>
+                <td>{{ log.driver_doc }}</td>
+                <td>{{ log.company }}</td>
+                <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% if log.exit_time %}
+                        {{ log.exit_time.strftime('%d/%m/%Y %H:%M') }}
+                    {% else %}
+                        <span class="em-local">Em local</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.exit_time %}
+                        {{ log.duration }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td style="font-size: 8.5pt;">{{ log.observations or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Sistema de Controle de Acesso • Página <span class="page-number"></span>
+    </div>
+</body>
+</html>
+==================================================
+
+==================================================
+📄 ARQUIVO: ./app/templates/reports/reports.html
+==================================================
+
+{% extends "base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <h4 class="mb-0">Filtro de Relatórios</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Data Início</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Data Fim</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                <button type="submit" name="export_excel" class="btn btn-success">Excel</button>
+                <button type="submit" name="export_pdf" class="btn btn-danger">PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='vehicle_plate', sort_dir=('desc' if sort_by=='vehicle_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Matrícula {{ '↑' if sort_by=='vehicle_plate' and sort_dir=='asc' else '↓' if sort_by=='vehicle_plate' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='trailer_plate', sort_dir=('desc' if sort_by=='trailer_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Reboque {{ '↑' if sort_by=='trailer_plate' and sort_dir=='asc' else '↓' if sort_by=='trailer_plate' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='driver_name', sort_dir=('desc' if sort_by=='driver_name' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Condutor {{ '↑' if sort_by=='driver_name' and sort_dir=='asc' else '↓' if sort_by=='driver_name' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='company', sort_dir=('desc' if sort_by=='company' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Empresa {{ '↑' if sort_by=='company' and sort_dir=='asc' else '↓' if sort_by=='company' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='entry_time', sort_dir=('desc' if sort_by=='entry_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Entrada {{ '↑' if sort_by=='entry_time' and sort_dir=='asc' else '↓' if sort_by=='entry_time' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='exit_time', sort_dir=('desc' if sort_by=='exit_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Saída {{ '↑' if sort_by=='exit_time' and sort_dir=='asc' else '↓' if sort_by=='exit_time' else '' }}</a>
+                        </th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.vehicle_plate }}</td>
+                        <td>{{ log.trailer_plate or '-' }}</td>
+                        <td>{{ log.driver_name }}</td>
+                        <td>{{ log.company }}</td>
+                        <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ log.exit_time.strftime('%d/%m/%Y %H:%M') if log.exit_time else 'Em local' }}</td>
+                        <td><small>{{ log.observations or '-' }}</small></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">Nenhum registro encontrado no período.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+==================================================
+
+==================================================
+📄 ARQUIVO: ./migrate_db.py
+==================================================
+
+import psycopg2
+import os
+
+# Configurações do seu banco
+DB_URL = "postgresql://ecclesia_user:368614011932lu@localhost:5432/access_db"
+
+def migrate():
+    try:
+        conn = psycopg2.connect(DB_URL)
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        print("--- Iniciando Migração do Banco de Dados ---")
+
+        # Adicionar coluna company na tabela authorized_trailer se não existir
+        cur.execute("""
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='authorized_trailer' AND column_name='company') THEN
+                    ALTER TABLE authorized_trailer ADD COLUMN company VARCHAR(100);
+                    RAISE NOTICE 'Coluna company adicionada na tabela authorized_trailer.';
+                ELSE
+                    RAISE NOTICE 'Coluna company já existe na tabela authorized_trailer.';
+                END IF;
+            END $$;
+        """)
+
+        # Garantir que as outras tabelas existam (caso precise)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS authorized_vehicle (
+                id SERIAL PRIMARY KEY,
+                plate VARCHAR(20) UNIQUE NOT NULL,
+                vehicle_type VARCHAR(20) NOT NULL,
+                company VARCHAR(100),
+                expiry_date DATE
+            );
+            
+            CREATE TABLE IF NOT EXISTS authorized_trailer (
+                id SERIAL PRIMARY KEY,
+                plate VARCHAR(20) UNIQUE NOT NULL,
+                company VARCHAR(100),
+                expiry_date DATE
+            );
+            
+            CREATE TABLE IF NOT EXISTS authorized_driver (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) UNIQUE NOT NULL,
+                document VARCHAR(50) NOT NULL,
+                company VARCHAR(100),
+                expiry_date DATE
+            );
+        """)
+        
+        print("Migração de colunas concluída com sucesso.")
+        
+        cur.close()
+        conn.close()
+        print("--- Migração finalizada! ---")
+
+    except Exception as e:
+        print(f"Erro na migração: {e}")
+
+if __name__ == "__main__":
+    migrate()
+==================================================
+
+==================================================
+📄 ARQUIVO: ./requirements.txt
+==================================================
+
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-Bcrypt
+Flask-Migrate
+psycopg2-binary
+pandas
+openpyxl
+# Bibliotecas para PDF podem exigir compiladores C no sistema
+# reportlab
+xhtml2pdf
+python-dotenv
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./run.py
+==================================================
+
+from app import create_app, db
+import os
+
+app = create_app()
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./seed_db.py
+==================================================
+
+from app import create_app, db, bcrypt
+from app.models import User, AccessLog, AuthorizedVehicle, AuthorizedDriver, AuthorizedTrailer
+from datetime import datetime, timedelta
+import os
+
+# Forçamos a URL para garantir que o seed vá para o banco correto
+os.environ['DATABASE_URL'] = "postgresql://ecclesia_user:368614011932lu@localhost:5432/access_db"
+
+app = create_app()
+
+def seed():
+    with app.app_context():
+        print("--- Inicializando Banco de Dados (access_db) ---")
+        db.create_all()
+        
+        # 1. Criar usuário administrador inicial
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin = User(username='admin', password=hashed_pw)
+            db.session.add(admin)
+            print("Usuário 'admin' criado (Senha: admin123)")
+        
+        # 2. Criar alguns registros de exemplo de autorização (vencidos e válidos)
+        today = datetime.now().date()
+        
+        # Veículo Válido
+        if not AuthorizedVehicle.query.filter_by(plate="VIG-2026").first():
+            v1 = AuthorizedVehicle(plate="VIG-2026", vehicle_type="ligeiro", company="Segurança Total", expiry_date=today + timedelta(days=30))
+            db.session.add(v1)
+            
+        # Veículo Vencido
+        if not AuthorizedVehicle.query.filter_by(plate="OLD-1990").first():
+            v2 = AuthorizedVehicle(plate="OLD-1990", vehicle_type="pesado", company="Transportes Antigos", expiry_date=today - timedelta(days=5))
+            db.session.add(v2)
+            
+        # Condutor Autorizado
+        if not AuthorizedDriver.query.filter_by(name="Lucas Vigilante").first():
+            d1 = AuthorizedDriver(name="Lucas Vigilante", document="RG-123456", company="Vigilância Ativa", expiry_date=today + timedelta(days=365))
+            db.session.add(d1)
+
+        db.session.commit()
+        print("--- Seed concluído com sucesso! ---")
+
+if __name__ == "__main__":
+    seed()
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./setup_db.py
+==================================================
+
+import psycopg2
+from psycopg2 import sql
+import os
+
+# Configurações do seu PostgreSQL (Ajuste se necessário)
+DB_ADMIN_USER = "postgres"  # Usuário administrador padrão
+DB_ADMIN_PASS = "postgres"  # Senha do administrador
+DB_HOST = "localhost"
+DB_PORT = "5432"
+
+# Dados do novo banco e usuário para a aplicação
+APP_DB_NAME = "access_db"
+APP_DB_USER = "access_user"
+APP_DB_PASS = "access_pass123"
+
+def setup_postgresql():
+    try:
+        # 1. Conectar ao PostgreSQL como administrador
+        conn = psycopg2.connect(
+            user=DB_ADMIN_USER,
+            password=DB_ADMIN_PASS,
+            host=DB_HOST,
+            port=DB_PORT,
+            database="postgres" # Conecta ao banco padrão para criar o novo
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        print(f"--- Iniciando configuração do banco de dados ---")
+
+        # 2. Criar o Usuário se não existir
+        cur.execute(sql.SQL("SELECT 1 FROM pg_roles WHERE rolname = %s"), [APP_DB_USER])
+        if not cur.fetchone():
+            cur.execute(sql.SQL("CREATE USER {} WITH PASSWORD %s").format(sql.Identifier(APP_DB_USER)), [APP_DB_PASS])
+            print(f"Usuário '{APP_DB_USER}' criado.")
+        else:
+            print(f"Usuário '{APP_DB_USER}' já existe.")
+
+        # 3. Criar o Banco de Dados se não existir
+        cur.execute(sql.SQL("SELECT 1 FROM pg_database WHERE datname = %s"), [APP_DB_NAME])
+        if not cur.fetchone():
+            cur.execute(sql.SQL("CREATE DATABASE {} OWNER {}").format(
+                sql.Identifier(APP_DB_NAME), 
+                sql.Identifier(APP_DB_USER)
+            ))
+            print(f"Banco de dados '{APP_DB_NAME}' criado.")
+        else:
+            print(f"Banco de dados '{APP_DB_NAME}' já existe.")
+
+        cur.close()
+        conn.close()
+        print(f"--- Configuração concluída com sucesso! ---")
+        print(f"\nSua URL de conexão será: postgresql://{APP_DB_USER}:{APP_DB_PASS}@{DB_HOST}:{DB_PORT}/{APP_DB_NAME}")
+        
+    except Exception as e:
+        print(f"Erro ao configurar o banco: {e}")
+        print("\nVerifique se o PostgreSQL está rodando e se as credenciais de administrador no topo deste script estão corretas.")
+
+if __name__ == "__main__":
+    setup_postgresql()
+
+==================================================
+
+==================================================
+📄 ARQUIVO: ./test_db.py
+==================================================
+
+from app import create_app, db
+from app.models import User
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print("Banco de dados inicializado com sucesso!")
+
+==================================================
+
+✅ Fim do cat_all.sh - Tudo enviado!

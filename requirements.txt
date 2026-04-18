@@ -1,0 +1,12 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-Bcrypt
+Flask-Migrate
+psycopg2-binary
+pandas
+openpyxl
+# Bibliotecas para PDF podem exigir compiladores C no sistema
+# reportlab
+xhtml2pdf
+python-dotenv

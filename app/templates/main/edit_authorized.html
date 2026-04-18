@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">{{ title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+
+                        {% if item_type == 'vehicle' or item_type == 'trailer' %}
+                            <div class="col-12">
+                                <label class="form-label">Placa / Matrícula</label>
+                                <input type="text" name="plate" class="form-control text-uppercase" 
+                                       value="{{ item.plate }}" required>
+                            </div>
+                        {% endif %}
+
+                        {% if item_type == 'vehicle' %}
+                            <div class="col-12">
+                                <label class="form-label">Tipo de Veículo</label>
+                                <select name="vehicle_type" class="form-select" required>
+                                    <option value="ligeiro" {{ 'selected' if item.vehicle_type == 'ligeiro' }}>Ligeiro</option>
+                                    <option value="pesado" {{ 'selected' if item.vehicle_type == 'pesado' }}>Pesado</option>
+                                    <option value="moto" {{ 'selected' if item.vehicle_type == 'moto' }}>Moto</option>
+                                    <option value="pedestre" {{ 'selected' if item.vehicle_type == 'pedestre' }}>Pedestre</option>
+                                </select>
+                            </div>
+                        {% endif %}
+
+                        {% if item_type == 'driver' %}
+                            <div class="col-12">
+                                <label class="form-label">Nome Completo</label>
+                                <input type="text" name="name" class="form-control" 
+                                       value="{{ item.name }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Documento</label>
+                                <input type="text" name="document" class="form-control" 
+                                       value="{{ item.document }}" required>
+                            </div>
+                        {% endif %}
+
+                        <div class="col-12">
+                            <label class="form-label">Empresa</label>
+                            <input type="text" name="company" class="form-control" 
+                                   value="{{ item.company or '' }}">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-danger fw-bold">Data de Vencimento</label>
+                            <input type="date" name="expiry_date" class="form-control" 
+                                   value="{{ item.expiry_date.strftime('%Y-%m-%d') if item.expiry_date else '' }}" required>
+                        </div>
+
+                        <div class="col-12 d-flex gap-2">
+                            <a href="{{ url_for('main.management') }}" class="btn btn-secondary flex-fill">Cancelar</a>
+                            <button type="submit" class="btn btn-success flex-fill">Salvar Alterações</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.venv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Flask
+flask_session/
+.DS_Store
+
+# Uploads
+uploads/
+static/uploads/
+
+# Configurações locais
+config.py
+.env.local
+.env.production
+
+# Relatórios gerados
+*.xlsx
+*.pdf

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Gestão de Cadastros{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <!-- Formulário de Novo Cadastro -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Novo Cadastro / Autorização</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Tipo de Cadastro</label>
+                            <select name="type" class="form-select form-select-sm" required id="reg_type">
+                                <option value="vehicle">Veículo</option>
+                                <option value="trailer">Reboque</option>
+                                <option value="driver">Condutor</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos para Veículo -->
+                        <div id="vehicle_fields" class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Placa / Matrícula</label>
+                                <input type="text" name="plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: ABC-1234" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Tipo de Veículo</label>
+                                <select name="vehicle_type" class="form-select form-select-sm" required>
+                                    <option value="ligeiro">Ligeiro</option>
+                                    <option value="pesado">Pesado</option>
+                                    <option value="moto">Moto</option>
+                                    <option value="pedestre">Pedestre</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Reboque -->
+                        <div id="trailer_fields" class="row g-3 d-none">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Placa / Matrícula do Reboque</label>
+                                <input type="text" name="plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: REB-5678" required>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Condutor -->
+                        <div id="driver_fields" class="row g-3 d-none">
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Nome Completo</label>
+                                <input type="text" name="name" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small mb-1">Documento (RG/CPF/CNH)</label>
+                                <input type="text" name="document" class="form-control form-control-sm" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" name="company" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1 text-danger fw-bold">Data de Vencimento</label>
+                            <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                        </div>
+                        
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-success">Salvar Autorização</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Autorizados -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Lista de Autorizados</h5>
+                <small class="text-muted">Clique em ✏️ para editar</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#v-tab">Veículos</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-tab">Reboques</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-tab">Condutores</button></li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Veículos -->
+                    <div class="tab-pane fade show active" id="v-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Tipo</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for v in vehicles %}
+                                <tr>
+                                    <td><strong>{{ v.plate }}</strong></td>
+                                    <td>{{ v.vehicle_type }}</td>
+                                    <td>{{ v.company or '-' }}</td>
+                                    <td>{{ v.expiry_date.strftime('%d/%m/%Y') if v.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='vehicle', id=v.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Reboques -->
+                    <div class="tab-pane fade" id="t-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Placa</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for t in trailers %}
+                                <tr>
+                                    <td><strong>{{ t.plate }}</strong></td>
+                                    <td>{{ t.company or '-' }}</td>
+                                    <td>{{ t.expiry_date.strftime('%d/%m/%Y') if t.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='trailer', id=t.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Condutores -->
+                    <div class="tab-pane fade" id="d-tab">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Nome</th><th>Documento</th><th>Empresa</th><th>Validade</th><th>Ações</th></tr></thead>
+                            <tbody>
+                                {% for d in drivers %}
+                                <tr>
+                                    <td><strong>{{ d.name }}</strong></td>
+                                    <td>{{ d.document }}</td>
+                                    <td>{{ d.company or '-' }}</td>
+                                    <td>{{ d.expiry_date.strftime('%d/%m/%Y') if d.expiry_date else 'Sem validade' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('main.edit_authorized', item_type='driver', id=d.id) }}" 
+                                           class="btn btn-outline-primary btn-sm">✏️ Editar</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Controle de campos do formulário de cadastro
+document.getElementById('reg_type').addEventListener('change', function(e) {
+    const vehicleFields = document.getElementById('vehicle_fields');
+    const trailerFields = document.getElementById('trailer_fields');
+    const driverFields  = document.getElementById('driver_fields');
+
+    vehicleFields.classList.add('d-none');
+    trailerFields.classList.add('d-none');
+    driverFields.classList.add('d-none');
+
+    if (e.target.value === 'vehicle') {
+        vehicleFields.classList.remove('d-none');
+    } else if (e.target.value === 'trailer') {
+        trailerFields.classList.remove('d-none');
+    } else if (e.target.value === 'driver') {
+        driverFields.classList.remove('d-none');
+    }
+});
+</script>
+{% endblock %}

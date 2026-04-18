@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <h4 class="mb-0">Filtro de Relatórios</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Data Início</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Data Fim</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                <button type="submit" name="export_excel" class="btn btn-success">Excel</button>
+                <button type="submit" name="export_pdf" class="btn btn-danger">PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='vehicle_plate', sort_dir=('desc' if sort_by=='vehicle_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Matrícula {{ '↑' if sort_by=='vehicle_plate' and sort_dir=='asc' else '↓' if sort_by=='vehicle_plate' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='trailer_plate', sort_dir=('desc' if sort_by=='trailer_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Reboque {{ '↑' if sort_by=='trailer_plate' and sort_dir=='asc' else '↓' if sort_by=='trailer_plate' else '' }}</a>
+                        </th>
+                        <th>Tipo</th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='driver_name', sort_dir=('desc' if sort_by=='driver_name' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Condutor {{ '↑' if sort_by=='driver_name' and sort_dir=='asc' else '↓' if sort_by=='driver_name' else '' }}</a>
+                        </th>
+                        <th>Acompanhantes</th>
+                        <th>Total</th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='company', sort_dir=('desc' if sort_by=='company' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Empresa {{ '↑' if sort_by=='company' and sort_dir=='asc' else '↓' if sort_by=='company' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='entry_time', sort_dir=('desc' if sort_by=='entry_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Entrada {{ '↑' if sort_by=='entry_time' and sort_dir=='asc' else '↓' if sort_by=='entry_time' else '' }}</a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('reports.view_reports', sort_by='exit_time', sort_dir=('desc' if sort_by=='exit_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
+                               class="text-decoration-none">Saída {{ '↑' if sort_by=='exit_time' and sort_dir=='asc' else '↓' if sort_by=='exit_time' else '' }}</a>
+                        </th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <strong>{{ log.vehicle_plate }}</strong>
+                            <br><small class="text-muted">{{ log.vehicle_type }}</small>
+                        </td>
+                        <td>{{ log.trailer_plate or '-' }}</td>
+                        <td>{{ log.vehicle_type }}</td>
+                        <td>
+                            {{ log.driver_name }}
+                            <br><small class="text-muted">{{ log.driver_doc }}</small>
+                        </td>
+                        <td>
+                            {% if log.companions %}
+                                <ul class="list-unstyled mb-0" style="font-size: 0.85rem;">
+                                {% for companion in log.companions %}
+                                    <li>• {{ companion.name }}<br><small>{{ companion.document }}</small></li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info">{{ log.total_people }}</span>
+                        </td>
+                        <td>{{ log.company }}</td>
+                        <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            {% if log.exit_time %}
+                                {{ log.exit_time.strftime('%d/%m/%Y %H:%M') }}
+                                <br><small class="text-muted">{{ log.duration }}</small>
+                            {% else %}
+                                <span class="text-danger">Em local</span>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ log.observations or '-' }}</small></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">Nenhum registro encontrado no período.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

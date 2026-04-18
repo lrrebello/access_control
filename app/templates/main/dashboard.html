@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row mb-4 text-center">
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='active') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-primary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'active' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Veículos no Local</h6>
+                    <h2 class="display-6 fw-bold">{{ total_vehicles }}</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('main.dashboard', filter='finished') }}" class="text-decoration-none">
+            <div class="card card-stats shadow-sm border-0 bg-secondary text-white {{ 'border-bottom border-5 border-white' if filter_type == 'finished' else '' }}">
+                <div class="card-body">
+                    <h6 class="card-title opacity-75">Saídas Registradas (Hoje)</h6>
+                    <h2 class="display-6 fw-bold">{{ today_exits }}</h2>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas no Local</h6>
+                <h2 class="display-6 fw-bold">{{ people_inside }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats shadow-sm border-0 bg-warning text-dark">
+            <div class="card-body">
+                <h6 class="card-title opacity-75">Pessoas Controladas (Hoje)</h6>
+                <h2 class="display-6 fw-bold">{{ daily_people }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Lado Esquerdo: Formulário de Registro Rápido -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Registro de Entrada</h5>
+                <a href="{{ url_for('main.management') }}" class="btn btn-outline-light btn-sm">Novo Cadastro</a>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('main.new_access') }}" method="POST" autocomplete="off" id="accessForm">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Matrícula do Veículo</label>
+                            <input list="list_vehicles" 
+                                   type="text" 
+                                   name="vehicle_plate" 
+                                   id="vehicle_plate_input" 
+                                   class="form-control form-control-sm" 
+                                   required 
+                                   placeholder="Ex: VIG-2026"
+                                   style="text-transform: uppercase;">
+                            <datalist id="list_vehicles">
+                                {% for v in auth_vehicles %}
+                                <option value="{{ v.plate }}">{{ v.plate }} — {{ v.company or 'Sem empresa' }} ({{ v.vehicle_type }})</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Reboque (Opcional)</label>
+                            <input list="list_trailers" 
+                                   type="text" 
+                                   name="trailer_plate" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Ex: REB-1234"
+                                   style="text-transform: uppercase;">
+                            <datalist id="list_trailers">
+                                {% for t in auth_trailers %}
+                                <option value="{{ t.plate }}">{{ t.plate }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Tipo de Veículo</label>
+                            <select name="vehicle_type" id="vehicle_type_select" class="form-select form-select-sm" required>
+                                <option value="ligeiro">Ligeiro</option>
+                                <option value="pesado">Pesado</option>
+                                <option value="moto">Moto</option>
+                                <option value="pedestre">Pedestre</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Empresa</label>
+                            <input type="text" 
+                                   name="company" 
+                                   id="company_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                        </div>
+
+                        <!-- Dados do Condutor -->
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1">Nome do Condutor</label>
+                            <input list="list_drivers" 
+                                   type="text" 
+                                   name="driver_name" 
+                                   id="driver_name_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                            <datalist id="list_drivers">
+                                {% for d in auth_drivers %}
+                                <option value="{{ d.name }}">{{ d.name }} — {{ d.document }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Documento do Condutor</label>
+                            <input type="text" 
+                                   name="driver_doc" 
+                                   id="driver_doc_input" 
+                                   class="form-control form-control-sm" 
+                                   required>
+                        </div>
+
+                        <!-- ACOMPANHANTES DINÂMICOS -->
+                        <div class="col-12 mt-3 border-top pt-2">
+                            <label class="form-label small mb-1 fw-bold">Acompanhantes</label>
+                            <div id="companions-container">
+                                <!-- Os acompanhantes serão adicionados aqui dinamicamente -->
+                            </div>
+                            <button type="button" id="add-companion-btn" class="btn btn-outline-primary btn-sm mt-2">
+                                ➕ Adicionar Acompanhante
+                            </button>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Observações</label>
+                            <textarea name="observations" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12 d-grid mt-3">
+                            <button type="submit" class="btn btn-primary">Registrar Entrada</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lado Direito: Tabela -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    {% if filter_type == 'active' %}Veículos no Local{% elif filter_type == 'finished' %}Registros Finalizados{% else %}Todos os Registros{% endif %}
+                </h5>
+                <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
+                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Buscar placa, condutor..." value="{{ search_query }}">
+                    <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Veículo</th>
+                                <th>Condutor / Acompanhantes</th>
+                                <th>Entrada</th>
+                                <th>Saída / Tempo</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr class="{{ 'table-warning' if log.alert_msg else '' }}">
+                                <td>
+                                    <span class="fw-bold">{{ log.vehicle_plate }}</span>
+                                    <span class="badge bg-light text-dark border ms-1">{{ log.vehicle_type }}</span>
+                                    {% if log.trailer_plate %}
+                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">R: {{ log.trailer_plate }}</span>
+                                    {% endif %}
+                                    <br><small class="text-muted">{{ log.company }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ log.driver_name }}</strong>
+                                    <br><small class="text-muted">{{ log.driver_doc }}</small>
+                                    {% if log.companions %}
+                                        <br><span class="text-success small">👥 Acompanhantes ({{ log.companions|length }}):</span>
+                                        {% for companion in log.companions %}
+                                            <br><small class="text-muted">└ {{ companion.name }} ({{ companion.document }})</small>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if log.alert_msg %}
+                                        <br><span class="text-danger fw-bold" style="font-size: 0.75rem;">⚠️ {{ log.alert_msg }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+                                <td>
+                                    {% if log.exit_time %}
+                                        <span class="text-muted small">{{ log.exit_time.strftime('%d/%m %H:%M') }}</span>
+                                        <br><span class="badge bg-secondary" style="font-size: 0.7rem;">{{ log.duration }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info text-dark">{{ log.duration }}</span>
+                                    {% endif %}
+                                 </td>
+                                 <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        {% if not log.exit_time %}
+                                            <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" class="btn btn-danger">Sair</a>
+                                        {% else %}
+                                            <a href="{{ url_for('main.remove_exit', log_id=log.id) }}" class="btn btn-warning" onclick="return confirm('Remover a saída deste registro? O veículo voltará para a lista de ativos.')">Desmarcar</a>
+                                        {% endif %}
+                                        <a href="{{ url_for('main.edit_access', log_id=log.id) }}" class="btn btn-outline-primary">✏️ Editar</a>
+                                    </div>
+                                 </td>
+                             </tr>
+                            {% else %}
+                             <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">Nenhum registro encontrado.</td>
+                             </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Controle de acompanhantes dinâmicos
+let companionCount = 0;
+
+function addCompanionField(name = '', doc = '') {
+    const container = document.getElementById('companions-container');
+    const companionDiv = document.createElement('div');
+    companionDiv.className = 'companion-entry border rounded p-2 mb-2';
+    companionDiv.style.backgroundColor = '#f8f9fa';
+    companionDiv.innerHTML = `
+        <div class="row g-2">
+            <div class="col-12">
+                <label class="form-label small mb-1">Nome do Acompanhante ${companionCount + 1}</label>
+                <input type="text" 
+                       name="companion_name[]" 
+                       class="form-control form-control-sm" 
+                       value="${escapeHtml(name)}"
+                       placeholder="Ex: João Silva">
+            </div>
+            <div class="col-10">
+                <label class="form-label small mb-1">Documento</label>
+                <input type="text" 
+                       name="companion_doc[]" 
+                       class="form-control form-control-sm" 
+                       value="${escapeHtml(doc)}"
+                       placeholder="RG, CPF ou CNH">
+            </div>
+            <div class="col-2 d-flex align-items-end">
+                <button type="button" class="btn btn-danger btn-sm remove-companion" style="width: 100%;">
+                    ✖
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar evento para remover
+    const removeBtn = companionDiv.querySelector('.remove-companion');
+    removeBtn.addEventListener('click', function() {
+        companionDiv.remove();
+        renumberCompanions();
+    });
+    
+    container.appendChild(companionDiv);
+    companionCount++;
+}
+
+function renumberCompanions() {
+    const entries = document.querySelectorAll('.companion-entry');
+    entries.forEach((entry, index) => {
+        const label = entry.querySelector('.col-12 label');
+        if (label) {
+            label.textContent = `Nome do Acompanhante ${index + 1}`;
+        }
+    });
+    companionCount = entries.length;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Adicionar evento ao botão +
+document.getElementById('add-companion-btn').addEventListener('click', function() {
+    addCompanionField();
+});
+
+// Dados para autocomplete
+const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles').textContent || '[]');
+const authDrivers  = JSON.parse(document.getElementById('data-auth-drivers').textContent || '[]');
+
+const vehicleInput = document.getElementById('vehicle_plate_input');
+const companyInput = document.getElementById('company_input');
+const typeSelect   = document.getElementById('vehicle_type_select');
+
+if (vehicleInput) {
+    vehicleInput.addEventListener('input', function() {
+        const val = this.value.trim().toUpperCase();
+        this.value = val;
+        const match = authVehicles.find(v => v.plate === val);
+        if (match) {
+            companyInput.value = match.company || '';
+            typeSelect.value = match.type || 'ligeiro';
+        }
+    });
+}
+
+const driverNameInput = document.getElementById('driver_name_input');
+const driverDocInput = document.getElementById('driver_doc_input');
+
+if (driverNameInput) {
+    driverNameInput.addEventListener('input', function() {
+        const val = this.value.trim();
+        const match = authDrivers.find(d => d.name === val);
+        if (match) {
+            driverDocInput.value = match.doc || '';
+            if (!companyInput.value) {
+                companyInput.value = match.company || '';
+            }
+        }
+    });
+}
+</script>
+
+<!-- Dados para JavaScript -->
+<script id="data-auth-vehicles" type="application/json">
+[
+    {% for v in auth_vehicles %}
+    {"plate": "{{ v.plate }}", "type": "{{ v.vehicle_type }}", "company": "{{ v.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+
+<script id="data-auth-drivers" type="application/json">
+[
+    {% for d in auth_drivers %}
+    {"name": "{{ d.name }}", "doc": "{{ d.document }}", "company": "{{ d.company|default('') }}"} {{ "," if not loop.last else "" }}
+    {% endfor %}
+]
+</script>
+{% endblock %}
