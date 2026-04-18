@@ -10,3 +10,4 @@ openpyxl
 # reportlab
 xhtml2pdf
 python-dotenv
+gunicorn
