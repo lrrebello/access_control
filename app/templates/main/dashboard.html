@@ -391,6 +391,68 @@ if (addBtn) {
         addCompanionField();
     });
 }
+// === CONTROLE DE CAMPOS POR TIPO DE VEÍCULO ===
+function toggleVehicleFields() {
+    const vehicleType = document.getElementById('vehicle_type_select').value;
+    const vehiclePlateInput = document.getElementById('vehicle_plate_input');
+    const trailerPlateInput = document.querySelector('input[name="trailer_plate"]');
+    const companyInput = document.getElementById('company_input');
+    const driverNameInput = document.getElementById('driver_name_input');
+    const driverDocInput = document.getElementById('driver_doc_input');
+    const addCompanionBtn = document.getElementById('add-companion-btn');
+    
+    if (vehicleType === 'pedestre') {
+        // Pedestre - ocultar campos de veículo e reboque
+        if (vehiclePlateInput) {
+            vehiclePlateInput.required = false;
+            vehiclePlateInput.disabled = true;
+            vehiclePlateInput.placeholder = 'Não aplicável para pedestre';
+            vehiclePlateInput.value = 'PEDESTRE';
+        }
+        if (trailerPlateInput) {
+            trailerPlateInput.disabled = true;
+            trailerPlateInput.placeholder = 'Não aplicável';
+            trailerPlateInput.value = '';
+        }
+        if (companyInput) {
+            companyInput.required = false;
+            companyInput.placeholder = 'Empresa (opcional)';
+        }
+        // Campos do condutor continuam obrigatórios
+        if (driverNameInput) driverNameInput.required = true;
+        if (driverDocInput) driverDocInput.required = true;
+        
+    } else {
+        // Veículo normal - restaurar campos
+        if (vehiclePlateInput) {
+            vehiclePlateInput.required = true;
+            vehiclePlateInput.disabled = false;
+            vehiclePlateInput.placeholder = 'Ex: AA-12-34';
+            if (vehiclePlateInput.value === 'PEDESTRE') {
+                vehiclePlateInput.value = '';
+            }
+        }
+        if (trailerPlateInput) {
+            trailerPlateInput.disabled = false;
+            trailerPlateInput.placeholder = 'Opcional';
+        }
+        if (companyInput) {
+            companyInput.required = true;
+            companyInput.placeholder = '';
+        }
+    }
+}
+
+// Adicionar evento de mudança no tipo de veículo
+const vehicleTypeSelect = document.getElementById('vehicle_type_select');
+if (vehicleTypeSelect) {
+    vehicleTypeSelect.addEventListener('change', toggleVehicleFields);
+}
+
+// Executar ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    toggleVehicleFields();
+});
 </script>
 
 <script>
@@ -435,6 +497,7 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
 
 // Adicionar botão de acompanhante
 const addBtn = document.getElementById('add-companion-btn');

@@ -225,6 +225,55 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// === CONTROLE DE CAMPOS POR TIPO DE VEÍCULO ===
+function toggleVehicleFields() {
+    const vehicleType = document.querySelector('select[name="vehicle_type"]').value;
+    const vehiclePlateInput = document.querySelector('input[name="vehicle_plate"]');
+    const trailerPlateInput = document.querySelector('input[name="trailer_plate"]');
+    const companyInput = document.querySelector('input[name="company"]');
+    
+    if (vehicleType === 'pedestre') {
+        if (vehiclePlateInput) {
+            vehiclePlateInput.required = false;
+            vehiclePlateInput.disabled = true;
+            vehiclePlateInput.placeholder = 'Não aplicável para pedestre';
+            if (!vehiclePlateInput.value || vehiclePlateInput.value === '') {
+                vehiclePlateInput.value = 'PEDESTRE';
+            }
+        }
+        if (trailerPlateInput) {
+            trailerPlateInput.disabled = true;
+            trailerPlateInput.placeholder = 'Não aplicável';
+            trailerPlateInput.value = '';
+        }
+        if (companyInput) {
+            companyInput.required = false;
+        }
+    } else {
+        if (vehiclePlateInput) {
+            vehiclePlateInput.required = true;
+            vehiclePlateInput.disabled = false;
+            vehiclePlateInput.placeholder = 'Ex: AA-12-34';
+            if (vehiclePlateInput.value === 'PEDESTRE') {
+                vehiclePlateInput.value = '';
+            }
+        }
+        if (trailerPlateInput) {
+            trailerPlateInput.disabled = false;
+            trailerPlateInput.placeholder = 'Opcional';
+        }
+        if (companyInput) {
+            companyInput.required = true;
+        }
+    }
+}
+
+// Adicionar evento
+const vehicleTypeSelectEdit = document.querySelector('select[name="vehicle_type"]');
+if (vehicleTypeSelectEdit) {
+    vehicleTypeSelectEdit.addEventListener('change', toggleVehicleFields);
+    document.addEventListener('DOMContentLoaded', toggleVehicleFields);
+}
 // Inicializar botão de adicionar acompanhante
 document.addEventListener('DOMContentLoaded', function() {
     const addBtn = document.getElementById('add-companion-btn');

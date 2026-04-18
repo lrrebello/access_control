@@ -80,16 +80,42 @@ def dashboard():
 @main.route("/access/new", methods=['POST'])
 @login_required
 def new_access():
-    vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
-    trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
+    vehicle_type = request.form.get('vehicle_type')
     driver_name = request.form.get('driver_name', '').strip()
-
+    
+    # Tratamento especial para pedestres
+    if vehicle_type == 'pedestre':
+        # Para pedestre, a matrícula é automática
+        vehicle_plate = 'PEDESTRE'
+        trailer_plate = None
+        company = request.form.get('company', '').strip() or 'Não informada'
+    else:
+        # Para veículos normais
+        vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
+        trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
+        company = request.form.get('company', '').strip()
+    
+    # Validações básicas
+    if vehicle_type != 'pedestre' and not vehicle_plate:
+        flash('Matrícula do veículo é obrigatória!', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    if not driver_name:
+        flash('Nome do condutor é obrigatório!', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    if not request.form.get('driver_doc'):
+        flash('Documento do condutor é obrigatório!', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    # Alertas de vencimento (apenas para veículos normais)
     alert_msg = ""
     today = datetime.now().date()
 
-    auth_v = AuthorizedVehicle.query.filter_by(plate=vehicle_plate).first()
-    if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
-        alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
+    if vehicle_type != 'pedestre':
+        auth_v = AuthorizedVehicle.query.filter_by(plate=vehicle_plate).first()
+        if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
+            alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
 
     if trailer_plate:
         auth_t = AuthorizedTrailer.query.filter_by(plate=trailer_plate).first()
@@ -105,10 +131,10 @@ def new_access():
         user_id=current_user.id,
         vehicle_plate=vehicle_plate,
         trailer_plate=trailer_plate,
-        vehicle_type=request.form.get('vehicle_type'),
+        vehicle_type=vehicle_type,
         driver_name=driver_name,
         driver_doc=request.form.get('driver_doc'),
-        company=request.form.get('company'),
+        company=company,
         observations=request.form.get('observations'),
         alert_msg=alert_msg if alert_msg else None
     )
@@ -131,10 +157,17 @@ def new_access():
     db.session.commit()
     
     total_people = 1 + len([n for n in companion_names if n])
-    if alert_msg:
-        flash(f'Entrada registrada com ALERTA: {alert_msg} | Total de pessoas: {total_people}', 'warning')
+    
+    # Mensagem personalizada para pedestre
+    if vehicle_type == 'pedestre':
+        flash_msg = f'🚶 Pedestre registrado com sucesso! Total de pessoas: {total_people}'
     else:
-        flash(f'Entrada registrada com sucesso! Total de pessoas: {total_people}', 'success')
+        flash_msg = f'🚗 Veículo {vehicle_plate} registrado com sucesso! Total de pessoas: {total_people}'
+    
+    if alert_msg:
+        flash(f'{flash_msg} | ⚠️ {alert_msg}', 'warning')
+    else:
+        flash(flash_msg, 'success')
     
     return redirect(url_for('main.dashboard'))
 
