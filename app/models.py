@@ -8,7 +8,7 @@ def load_user(user_id):
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(20), unique=True, nullable=False)
+    username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     is_approved = db.Column(db.Boolean, default=False)  # Novo campo
     is_admin = db.Column(db.Boolean, default=False)     # Admin pode aprovar outros

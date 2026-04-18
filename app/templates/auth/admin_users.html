@@ -27,26 +27,47 @@
                             {% else %}
                                 <span class="badge bg-warning text-dark">Pendente</span>
                             {% endif %}
-                         </td>
+                        </td>
                         <td>
                             {% if user.is_admin %}
                                 <span class="badge bg-danger">Admin</span>
                             {% else %}
                                 <span class="badge bg-secondary">Usuário</span>
                             {% endif %}
-                         </td>
+                        </td>
                         <td>{{ user.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td>
-                            {% if not user.is_approved %}
-                                <a href="{{ url_for('auth.approve_user', user_id=user.id) }}" class="btn btn-success btn-sm">Aprovar</a>
-                            {% else %}
-                                <a href="{{ url_for('auth.revoke_user', user_id=user.id) }}" class="btn btn-warning btn-sm" onclick="return confirm('Bloquear este usuário?')">Bloquear</a>
-                            {% endif %}
-                            
-                            {% if not user.is_admin and user.is_approved %}
-                                <a href="{{ url_for('auth.make_admin', user_id=user.id) }}" class="btn btn-info btn-sm">Tornar Admin</a>
-                            {% endif %}
-                         </td>
+                            <div class="btn-group btn-group-sm">
+                                {% if not user.is_approved %}
+                                    <a href="{{ url_for('auth.approve_user', user_id=user.id) }}" 
+                                       class="btn btn-success" title="Aprovar">
+                                        <i class="bi bi-check-lg"></i>
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('auth.revoke_user', user_id=user.id) }}" 
+                                       class="btn btn-warning" title="Bloquear"
+                                       onclick="return confirm('Bloquear este usuário?')">
+                                        <i class="bi bi-lock"></i>
+                                    </a>
+                                {% endif %}
+                                
+                                {% if not user.is_admin and user.is_approved %}
+                                    <a href="{{ url_for('auth.make_admin', user_id=user.id) }}" 
+                                       class="btn btn-info" title="Tornar Admin">
+                                        <i class="bi bi-star"></i>
+                                    </a>
+                                {% endif %}
+                                
+                                <!-- Botão Excluir - apenas para usuários não admin ou admin secundários -->
+                                {% if user.id != current_user.id and not (user.is_admin and user.id == 1) %}
+                                    <a href="{{ url_for('auth.delete_user', user_id=user.id) }}" 
+                                       class="btn btn-danger" title="Excluir Permanentemente"
+                                       onclick="return confirm('⚠️ ATENÇÃO! Tem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário "{{ user.username }}"? Esta ação não pode ser desfeita!')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -54,4 +75,13 @@
         </div>
     </div>
 </div>
+
+<style>
+    .btn-group .btn {
+        margin-right: 2px;
+    }
+    .btn-group .btn:last-child {
+        margin-right: 0;
+    }
+</style>
 {% endblock %}

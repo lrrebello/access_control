@@ -112,3 +112,29 @@ def make_admin(user_id):
     db.session.commit()
     flash(f'Usuário {user.username} agora é administrador!', 'success')
     return redirect(url_for('auth.admin_users'))
+
+@auth.route("/admin/delete/<int:user_id>")
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Impedir admin de excluir a si mesmo
+    if user.id == current_user.id:
+        flash('Você não pode excluir sua própria conta!', 'danger')
+        return redirect(url_for('auth.admin_users'))
+    
+    # Impedir excluir o primeiro admin (opcional, por segurança)
+    if user.is_admin and user.id == 1:
+        flash('Este é o administrador principal e não pode ser excluído!', 'danger')
+        return redirect(url_for('auth.admin_users'))
+    
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'Usuário "{username}" foi excluído permanentemente!', 'success')
+    return redirect(url_for('auth.admin_users'))
