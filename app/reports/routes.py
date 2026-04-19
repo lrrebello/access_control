@@ -72,7 +72,7 @@ def view_reports():
 
 
 def export_excel(logs):
-    """Exporta para Excel com coluna de acompanhantes"""
+    """Exporta para Excel com coluna de acompanhantes e posto"""
     data = []
     for log in logs:
         # Formatar lista de acompanhantes
@@ -81,7 +81,11 @@ def export_excel(logs):
             companions_list = [f"{c.name} ({c.document})" for c in log.companions]
             companions_text = "\n".join(companions_list)
         
+        # Nome do posto (se existir)
+        posto = log.workstation.name if log.workstation else 'Não informado'
+        
         data.append({
+            'Posto': posto,
             'Matrícula': log.vehicle_plate,
             'Reboque': log.trailer_plate or '',
             'Tipo Veículo': log.vehicle_type,
@@ -107,31 +111,34 @@ def export_excel(logs):
         # Acessar a planilha
         worksheet = writer.sheets['Relatório de Acessos']
         
-        # Adicionar cabeçalho com informações do usuário
+        # Adicionar cabeçalho com informações do usuário e posto
         from openpyxl.styles import Font, Alignment
         from openpyxl.utils import get_column_letter
         
+        # Determinar o posto atual do usuário (se houver)
+        posto_atual = current_user.current_workstation.name if current_user.current_workstation else 'Todos os Postos'
+        
         # Inserir linhas no topo
-        worksheet.insert_rows(0, 4)
+        worksheet.insert_rows(0, 5)
         
         # Título do relatório
         worksheet['A1'] = 'RELATÓRIO DE CONTROLE DE ACESSO'
         worksheet['A1'].font = Font(bold=True, size=14)
-        worksheet.merge_cells('A1:N1')
+        worksheet.merge_cells('A1:O1')
         worksheet['A1'].alignment = Alignment(horizontal='center')
         
         # Informações do relatório
-        worksheet['A2'] = f'Gerado por: {current_user.username}'
-        worksheet['A3'] = f'Data: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
-        worksheet['A4'] = f'Período: {request.form.get("start_date", "Tudo")} até {request.form.get("end_date", "Tudo")}'
+        worksheet['A2'] = f'Posto: {posto_atual}'
+        worksheet['A3'] = f'Gerado por: {current_user.username}'
+        worksheet['A4'] = f'Data: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
+        worksheet['A5'] = f'Período: {request.form.get("start_date", "Tudo")} até {request.form.get("end_date", "Tudo")}'
         
-        # Ajustar largura das colunas - VERSÃO CORRIGIDA
+        # Ajustar largura das colunas
         for col in worksheet.columns:
             max_length = 0
             col_letter = get_column_letter(col[0].column)
             for cell in col:
                 try:
-                    # Pular células mescladas
                     if hasattr(cell, 'value') and cell.value:
                         cell_length = len(str(cell.value))
                         if cell_length > max_length:
@@ -146,19 +153,17 @@ def export_excel(logs):
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-
 def export_pdf(logs, start_date=None, end_date=None):
-    """Gera PDF com acompanhantes"""
+    """Gera PDF com acompanhantes e posto"""
     from xhtml2pdf import pisa
     from io import BytesIO
     from PIL import Image
     import sys
     
-    # Caminho da logo original e redimensionada
+    # Caminho da logo
     logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
     resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
 
-    # Redimensiona a logo (máximo 220x60)
     try:
         if os.path.exists(logo_path):
             img = Image.open(logo_path).convert("RGBA")
@@ -171,20 +176,16 @@ def export_pdf(logs, start_date=None, end_date=None):
         logo_to_use = ""
 
     try:
-        # Ler o template HTML
-        template_path = os.path.join(current_app.root_path, 'templates', 'reports', 'pdf_template.html')
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
+        html_content = open('app/templates/reports/pdf_template.html', encoding='utf-8').read()
         
-        # Converter current_user para dados simples (evita erro de serialização)
+        # Dados do usuário
         user_data = {
             'username': str(current_user.username),
             'is_admin': bool(current_user.is_admin)
         }
         
-        # Preparar dados para o template
-        from datetime import datetime as dt
-        now = dt.now()
+        # Posto atual do usuário
+        user_posto = current_user.current_workstation.name if current_user.current_workstation else 'Todos os Postos'
         
         # Processar logs para garantir que os dados estão corretos
         logs_data = []
@@ -200,10 +201,10 @@ def export_pdf(logs, start_date=None, end_date=None):
                 'exit_time': log.exit_time,
                 'observations': str(log.observations) if log.observations else '',
                 'duration': str(log.duration) if log.duration else '',
+                'workstation': {'name': log.workstation.name if log.workstation else '-'},
                 'companions': []
             }
             
-            # Adicionar acompanhantes
             for companion in log.companions:
                 log_dict['companions'].append({
                     'name': str(companion.name),
@@ -212,18 +213,17 @@ def export_pdf(logs, start_date=None, end_date=None):
             
             logs_data.append(log_dict)
         
-        # Renderizar o HTML
         html = render_template_string(
             html_content,
             logs=logs_data,
-            now=now,
+            now=datetime.now(),
             start_date=start_date or '',
             end_date=end_date or '',
             logo_path=logo_to_use,
-            user=user_data
+            user=user_data,
+            user_posto=user_posto
         )
 
-        # Gerar PDF
         output = BytesIO()
         pdf = pisa.pisaDocument(BytesIO(html.encode("UTF-8")), dest=output)
 
@@ -234,12 +234,7 @@ def export_pdf(logs, start_date=None, end_date=None):
         output.seek(0)
         filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
 
-        return send_file(
-            output, 
-            as_attachment=True, 
-            download_name=filename, 
-            mimetype='application/pdf'
-        )
+        return send_file(output, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
     except Exception as e:
         flash(f'Erro ao gerar PDF: {str(e)}', 'danger')

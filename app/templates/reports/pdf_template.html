@@ -17,13 +17,28 @@
             text-align: center;
             color: #374151;
             font-size: 16pt;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #3b82f6;
+            font-size: 12pt;
+            margin-bottom: 15px;
+            font-weight: bold;
         }
         .header-info {
             text-align: center;
             font-size: 9pt;
             margin-bottom: 15px;
             color: #555;
+        }
+        .user-info {
+            text-align: left;
+            font-size: 8pt;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #f3f4f6;
+            border-left: 3px solid #3b82f6;
         }
         table {
             width: 100%;
@@ -85,9 +100,15 @@
     {% endif %}
 
     <h1>Relatório de Controle de Acesso</h1>
-    <div class="header-info">
-        Período: {% if start_date %}{{ start_date }} até {% endif %}{{ end_date or 'Atual' }}<br>
-        Gerado em: {{ now.strftime('%d/%m/%Y às %H:%M:%S') }}
+    <div class="subtitle">
+        Posto: {{ user_posto }}
+    </div>
+    
+    <div class="user-info">
+        <strong>👤 Usuário:</strong> {{ user.username }} 
+        {% if user.is_admin %} (Administrador){% endif %}<br>
+        <strong>📅 Gerado em:</strong> {{ now.strftime('%d/%m/%Y às %H:%M:%S') }}<br>
+        <strong>📆 Período:</strong> {% if start_date %}{{ start_date }} até {% endif %}{{ end_date or 'Atual' }}
     </div>
 
     <table>
@@ -96,11 +117,12 @@
                 <th width="9%">Matrícula</th>
                 <th width="6%">Tipo</th>
                 <th width="14%">Condutor</th>
-                <th width="22%">Acompanhantes</th>
-                <th width="12%">Empresa</th>
-                <th width="13%">Entrada</th>
-                <th width="13%">Saída</th>
-                <th width="11%">Observação</th>
+                <th width="20%">Acompanhantes</th>
+                <th width="10%">Empresa</th>
+                <th width="11%">Entrada</th>
+                <th width="11%">Saída</th>
+                <th width="9%">Posto</th>
+                <th width="10%">Observação</th>
             </tr>
         </thead>
         <tbody>
@@ -138,6 +160,11 @@
                         <span class="em-local">Em local</span>
                     {% endif %}
                 </td>
+                <td>
+                    <span class="badge bg-secondary" style="font-size: 7pt;">
+                        {{ log.workstation.name if log.workstation else '-' }}
+                    </span>
+                </td>
                 <td style="font-size: 7pt;">{{ log.observations or '-' }}</td>
             </tr>
             {% endfor %}
@@ -145,7 +172,7 @@
     </table>
 
     <div class="footer">
-        Gerado por: {{ current_user.username }} - {{ now.strftime('%d/%m/%Y %H:%M') }} | Sistema de Controle de Acesso
+        Gerado por: {{ user.username }} - {{ now.strftime('%d/%m/%Y %H:%M') }} | Sistema de Controle de Acesso
     </div>
 </body>
 </html>
