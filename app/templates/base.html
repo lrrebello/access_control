@@ -150,6 +150,16 @@
         .ios-banner {
             background: linear-gradient(135deg, #555, #333);
         }
+        
+        /* Badge do posto ativo */
+        .workstation-badge {
+            background-color: #28a745;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -172,9 +182,19 @@
                             <i class="bi bi-file-text"></i> Relatórios
                         </a></li>
                         {% if current_user.is_admin %}
-                            <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.admin_users') }}">
-                                <i class="bi bi-people"></i> Usuários
-                            </a></li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-gear"></i> Admin
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('auth.admin_users') }}">
+                                        <i class="bi bi-people"></i> Usuários
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('auth.admin_workstations') }}">
+                                        <i class="bi bi-building"></i> Postos
+                                    </a></li>
+                                </ul>
+                            </li>
                         {% endif %}
                         
                         <!-- Botão Modo Escuro/Claro -->
@@ -190,6 +210,11 @@
                                 {% if current_user.is_admin %}
                                     <span class="badge bg-danger ms-1">Admin</span>
                                 {% endif %}
+                                {% if current_user.current_workstation %}
+                                    <span class="workstation-badge">
+                                        <i class="bi bi-building"></i> {{ current_user.current_workstation.name }}
+                                    </span>
+                                {% endif %}
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li id="install-menu-item" style="display: none;">
@@ -198,6 +223,17 @@
                                     </button>
                                 </li>
                                 <li><hr class="dropdown-divider" id="install-divider" style="display: none;"></li>
+                                
+                                <!-- TROCA DE POSTO - ADICIONADO AQUI -->
+                                {% if current_user.accessible_workstations|length > 1 %}
+                                <li>
+                                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#switchWorkstationModal">
+                                        <i class="bi bi-arrow-left-right"></i> Trocar Posto
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                
                                 <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
                                     <i class="bi bi-box-arrow-right"></i> Sair
                                 </a></li>
@@ -230,6 +266,41 @@
         {% endwith %}
         
         {% block content %}{% endblock %}
+    </div>
+
+    <!-- Modal Trocar Posto -->
+    <div class="modal fade" id="switchWorkstationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-building"></i> Trocar Posto de Trabalho</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('auth.switch_workstation') }}">
+                    <div class="modal-body">
+                        <p>Selecione o posto para onde deseja mudar:</p>
+                        <select name="workstation_id" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            {% for w in current_user.accessible_workstations %}
+                            <option value="{{ w.id }}" {% if current_user.active_workstation_id == w.id %}selected{% endif %}>
+                                {{ w.name }} 
+                                {% if w.location %} - {{ w.location }}{% endif %}
+                                {% if current_user.active_workstation_id == w.id %}(atual){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="bi bi-info-circle"></i> 
+                            Ao trocar de posto, você herdará os registros em aberto do novo posto.
+                        </small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Trocar Posto</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Banner de instalação PWA -->

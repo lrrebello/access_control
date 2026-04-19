@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Usuários do Posto: {{ workstation.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-building"></i> Posto: {{ workstation.name }}</h4>
+    <a href="{{ url_for('auth.admin_workstations') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h6 class="mb-0">Adicionar Usuário ao Posto</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('auth.add_workstation_user') }}">
+                    <input type="hidden" name="workstation_id" value="{{ workstation.id }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Usuário</label>
+                        <select name="user_id" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}">{{ user.username }} {% if user.is_admin %}(Admin){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Data Início</label>
+                            <input type="date" name="start_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Data Fim</label>
+                            <input type="date" name="end_date" class="form-control" value="{{ next_year.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-person-plus"></i> Adicionar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h6 class="mb-0">Usuários Autorizados</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Usuário</th>
+                                <th>Período</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in assignments %}
+                            <tr>
+                                <td>{{ a.user.username }}</td>
+                                <td>
+                                    <small>
+                                        {{ a.start_date.strftime('%d/%m/%Y') }}<br>
+                                        até {{ a.end_date.strftime('%d/%m/%Y') }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if a.is_valid %}
+                                    <span class="badge bg-success">Válido</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Expirado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('auth.remove_workstation_user', id=a.id) }}" 
+                                       class="btn btn-danger btn-sm"
+                                       onclick="return confirm('Remover este usuário do posto?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    Nenhum usuário associado a este posto.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

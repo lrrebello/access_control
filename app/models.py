@@ -10,9 +10,85 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
-    is_approved = db.Column(db.Boolean, default=False)  # Novo campo
-    is_admin = db.Column(db.Boolean, default=False)     # Admin pode aprovar outros
+    is_approved = db.Column(db.Boolean, default=False)
+    is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relacionamentos
+    workstations = db.relationship('WorkstationUser', back_populates='user', cascade='all, delete-orphan')
+    active_workstation_id = db.Column(db.Integer, db.ForeignKey('workstation.id'), nullable=True)
+    active_workstation = db.relationship('Workstation', foreign_keys=[active_workstation_id])
+    
+    @property
+    def current_workstation(self):
+        """Retorna o posto de trabalho ativo do usuário"""
+        if self.active_workstation_id:
+            return Workstation.query.get(self.active_workstation_id)
+        return None
+    
+    @property
+    def accessible_workstations(self):
+        """Retorna lista de postos que o usuário pode acessar"""
+        from datetime import date
+        today = date.today()
+        return [wu.workstation for wu in self.workstations if wu.is_active and wu.start_date <= today <= wu.end_date]
+
+
+class Workstation(db.Model):
+    """Posto de Trabalho (ex: Portaria 1, Portaria 2, etc)"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(255))
+    location = db.Column(db.String(100))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relacionamentos
+    users = db.relationship('WorkstationUser', back_populates='workstation', cascade='all, delete-orphan')
+    access_logs = db.relationship('AccessLog', back_populates='workstation')
+    
+    def __repr__(self):
+        return f"<Workstation {self.name}>"
+    
+    @property
+    def active_users(self):
+        """Usuários ativos neste posto"""
+        from datetime import date
+        today = date.today()
+        return [wu.user for wu in self.users if wu.is_active and wu.start_date <= today <= wu.end_date]
+    
+    @property
+    def open_access_logs(self):
+        """Registros em aberto (sem saída) deste posto"""
+        return AccessLog.query.filter(
+            AccessLog.workstation_id == self.id,
+            AccessLog.exit_time == None
+        ).all()
+
+
+class WorkstationUser(db.Model):
+    """Relacionamento entre usuários e postos com período de validade"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    workstation_id = db.Column(db.Integer, db.ForeignKey('workstation.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False, default=datetime.now().date)
+    end_date = db.Column(db.Date, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relacionamentos
+    user = db.relationship('User', back_populates='workstations')
+    workstation = db.relationship('Workstation', back_populates='users')
+    
+    def __repr__(self):
+        return f"<WorkstationUser {self.user.username} - {self.workstation.name}>"
+    
+    @property
+    def is_valid(self):
+        """Verifica se o acesso ainda é válido"""
+        today = datetime.now().date()
+        return self.is_active and self.start_date <= today <= self.end_date
+
 
 # ==================== TABELAS DE AUTORIZAÇÃO ====================
 
@@ -47,6 +123,7 @@ class AuthorizedDriver(db.Model):
     def __repr__(self):
         return f"<AuthorizedDriver {self.name}>"
 
+
 # ==================== ACOMPANHANTES ====================
 
 class Companion(db.Model):
@@ -61,11 +138,13 @@ class Companion(db.Model):
     def __repr__(self):
         return f"<Companion {self.name}>"
 
+
 # ==================== REGISTRO DE ACESSO ====================
 
 class AccessLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    workstation_id = db.Column(db.Integer, db.ForeignKey('workstation.id'), nullable=True)
     vehicle_plate = db.Column(db.String(20), nullable=False)
     trailer_plate = db.Column(db.String(20))
     vehicle_type = db.Column(db.String(20), nullable=False)
@@ -77,8 +156,9 @@ class AccessLog(db.Model):
     observations = db.Column(db.Text)
     alert_msg = db.Column(db.String(255))
     
-    # Relacionamento com acompanhantes
+    # Relacionamentos
     user = db.relationship('User', backref='access_logs')
+    workstation = db.relationship('Workstation', back_populates='access_logs')
     companions = db.relationship('Companion', back_populates='access_log', cascade='all, delete-orphan')
 
     @property

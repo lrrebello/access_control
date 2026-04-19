@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Postos{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-building"></i> Postos de Trabalho</h4>
+    <a href="{{ url_for('auth.add_workstation') }}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Novo Posto
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome</th>
+                        <th>Localização</th>
+                        <th>Descrição</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in workstations %}
+                    <tr>
+                        <td><strong>{{ w.name }}</strong></td>
+                        <td>{{ w.location or '-' }}</td>
+                        <td>{{ w.description|truncate(50) or '-' }}</td>
+                        <td>
+                            {% if w.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('auth.workstation_users', id=w.id) }}" class="btn btn-info" title="Usuários">
+                                    <i class="bi bi-people"></i>
+                                </a>
+                                <a href="{{ url_for('auth.edit_workstation', id=w.id) }}" class="btn btn-warning" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{{ url_for('auth.delete_workstation', id=w.id) }}" class="btn btn-danger" title="Excluir"
+                                   onclick="return confirm('Excluir este posto?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

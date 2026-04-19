@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Selecionar Posto{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white text-center">
+                <h4 class="mb-0"><i class="bi bi-building"></i> Selecionar Posto de Trabalho</h4>
+            </div>
+            <div class="card-body text-center">
+                <p class="text-muted">Olá, <strong>{{ current_user.username }}</strong>! Selecione o posto onde você vai operar:</p>
+                
+                <form method="POST">
+                    <div class="list-group mb-4">
+                        {% for workstation in workstations %}
+                        <button type="submit" name="workstation_id" value="{{ workstation.id }}" 
+                                class="list-group-item list-group-item-action py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-building fs-4 me-3 text-primary"></i>
+                                    <strong>{{ workstation.name }}</strong>
+                                    {% if workstation.location %}
+                                    <br><small class="text-muted">{{ workstation.location }}</small>
+                                    {% endif %}
+                                </div>
+                                <i class="bi bi-arrow-right-circle fs-3 text-primary"></i>
+                            </div>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </form>
+                
+                <hr>
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i> 
+                    Os registros em aberto deste posto serão herdados automaticamente.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 from flask import render_template, url_for, flash, redirect, request, jsonify
 from app import db
-from app.models import AccessLog, AuthorizedVehicle, AuthorizedTrailer, AuthorizedDriver, Companion
+from app.models import AccessLog, AuthorizedVehicle, AuthorizedTrailer, AuthorizedDriver, Companion, Workstation
 from app.main import main
 from flask_login import login_required, current_user
 from datetime import datetime
@@ -10,21 +10,25 @@ from datetime import datetime
 @main.route("/dashboard")
 @login_required
 def dashboard():
+    # Garantir que o usuário tem um posto ativo
+    if not current_user.active_workstation_id:
+        return redirect(url_for('auth.select_workstation'))
+    
     filter_type = request.args.get('filter', 'active')
     search_query = request.args.get('search', '').strip()
     
-    # DATA ATUAL para filtros
     today = datetime.now().date()
-    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
-    today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
+    workstation_id = current_user.active_workstation_id
     
     query = AccessLog.query
     
-    # Filtrar por usuário - ADMINS veem tudo, outros veem só seus registros
+    # Filtrar por posto de trabalho
+    query = query.filter(AccessLog.workstation_id == workstation_id)
+    
+    # Admins veem tudo do posto, outros veem só seus registros
     if not current_user.is_admin:
         query = query.filter(AccessLog.user_id == current_user.id)
     
-    # Filtro de busca
     if search_query:
         query = query.filter(
             (AccessLog.vehicle_plate.ilike(f'%{search_query}%')) |
@@ -32,51 +36,34 @@ def dashboard():
             (AccessLog.company.ilike(f'%{search_query}%'))
         )
     
-    # APLICAR FILTROS CORRETOS
     if filter_type == 'active':
-        # Veículos que ainda estão no local (sem saída)
         logs = query.filter(AccessLog.exit_time == None).order_by(AccessLog.entry_time.desc()).all()
     elif filter_type == 'finished':
-        # Registros finalizados (com saída) - APENAS DO DIA ATUAL
         logs = query.filter(
             AccessLog.exit_time != None,
             db.func.date(AccessLog.exit_time) == today
         ).order_by(AccessLog.exit_time.desc()).all()
-    else:  # 'all'
-        # Todos os registros
+    else:
         logs = query.order_by(AccessLog.entry_time.desc()).all()
     
-    # CORRIGIDO: Filtrar ativos pelo usuário atual
-    active_query = AccessLog.query.filter(AccessLog.exit_time == None)
-    if not current_user.is_admin:
-        active_query = active_query.filter(AccessLog.user_id == current_user.id)
+    # Estatísticas do posto atual
+    active_query = AccessLog.query.filter(
+        AccessLog.exit_time == None,
+        AccessLog.workstation_id == workstation_id
+    )
     active_logs = active_query.all()
     total_vehicles_inside = len(active_logs)
     people_inside = sum(log.total_people for log in active_logs)
     
-    # CORRIGIDO: Contagem de saídas de HOJE pelo usuário atual
-    today_exits_query = AccessLog.query.filter(
+    today_exits = AccessLog.query.filter(
         AccessLog.exit_time != None,
-        db.func.date(AccessLog.exit_time) == today
-    )
-    if not current_user.is_admin:
-        today_exits_query = today_exits_query.filter(AccessLog.user_id == current_user.id)
-    today_exits = today_exits_query.count()
+        db.func.date(AccessLog.exit_time) == today,
+        AccessLog.workstation_id == workstation_id
+    ).count()
     
-    # CORRIGIDO: Pessoas controladas hoje pelo usuário atual
-    today_movements_query = AccessLog.query.filter(
-        (db.func.date(AccessLog.entry_time) == today) | 
-        (db.func.date(AccessLog.exit_time) == today)
-    )
-    if not current_user.is_admin:
-        today_movements_query = today_movements_query.filter(AccessLog.user_id == current_user.id)
-    today_movements = today_movements_query.all()
-    daily_people = sum(log.total_people for log in today_movements)
-    
-    # Estatísticas adicionais para os cards
-    # Total de veículos que entraram hoje
-    today_entries_count = AccessLog.query.filter(
-        db.func.date(AccessLog.entry_time) == today
+    today_entries = AccessLog.query.filter(
+        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.workstation_id == workstation_id
     ).count()
     
     auth_vehicles = AuthorizedVehicle.query.all()
@@ -88,8 +75,7 @@ def dashboard():
                            total_vehicles=total_vehicles_inside,
                            people_inside=people_inside,
                            today_exits=today_exits,
-                           daily_people=daily_people,
-                           today_entries_count=today_entries_count,
+                           today_entries=today_entries,
                            auth_vehicles=auth_vehicles,
                            auth_trailers=auth_trailers,
                            auth_drivers=auth_drivers,
@@ -102,22 +88,22 @@ def dashboard():
 @main.route("/access/new", methods=['POST'])
 @login_required
 def new_access():
+    if not current_user.active_workstation_id:
+        flash('Selecione um posto de trabalho primeiro.', 'warning')
+        return redirect(url_for('auth.select_workstation'))
+    
     vehicle_type = request.form.get('vehicle_type')
     driver_name = request.form.get('driver_name', '').strip()
     
-    # Tratamento especial para pedestres
     if vehicle_type == 'pedestre':
-        # Para pedestre, a matrícula é automática
         vehicle_plate = 'PEDESTRE'
         trailer_plate = None
         company = request.form.get('company', '').strip() or 'Não informada'
     else:
-        # Para veículos normais
         vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
         trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
         company = request.form.get('company', '').strip()
     
-    # Validações básicas
     if vehicle_type != 'pedestre' and not vehicle_plate:
         flash('Matrícula do veículo é obrigatória!', 'danger')
         return redirect(url_for('main.dashboard'))
@@ -126,11 +112,6 @@ def new_access():
         flash('Nome do condutor é obrigatório!', 'danger')
         return redirect(url_for('main.dashboard'))
     
-    if not request.form.get('driver_doc'):
-        flash('Documento do condutor é obrigatório!', 'danger')
-        return redirect(url_for('main.dashboard'))
-    
-    # Alertas de vencimento (apenas para veículos normais)
     alert_msg = ""
     today = datetime.now().date()
 
@@ -148,9 +129,9 @@ def new_access():
     if auth_d and auth_d.expiry_date and auth_d.expiry_date < today:
         alert_msg += f"CONDUTOR VENCIDO ({auth_d.expiry_date.strftime('%d/%m/%Y')}). "
 
-    # Criar o registro de acesso
     log = AccessLog(
         user_id=current_user.id,
+        workstation_id=current_user.active_workstation_id,
         vehicle_plate=vehicle_plate,
         trailer_plate=trailer_plate,
         vehicle_type=vehicle_type,
@@ -161,14 +142,13 @@ def new_access():
         alert_msg=alert_msg if alert_msg else None
     )
     db.session.add(log)
-    db.session.flush()  # Para obter o ID do log antes de adicionar acompanhantes
+    db.session.flush()
 
-    # Processar acompanhantes dinâmicos
     companion_names = request.form.getlist('companion_name[]')
     companion_docs = request.form.getlist('companion_doc[]')
     
     for name, doc in zip(companion_names, companion_docs):
-        if name and doc:  # Só adiciona se ambos forem preenchidos
+        if name and doc:
             companion = Companion(
                 access_log_id=log.id,
                 name=name.strip(),
@@ -180,11 +160,10 @@ def new_access():
     
     total_people = 1 + len([n for n in companion_names if n])
     
-    # Mensagem personalizada para pedestre
     if vehicle_type == 'pedestre':
-        flash_msg = f'🚶 Pedestre registrado com sucesso! Total de pessoas: {total_people}'
+        flash_msg = f'🚶 Pedestre registrado! Total: {total_people} pessoas'
     else:
-        flash_msg = f'🚗 Veículo {vehicle_plate} registrado com sucesso! Total de pessoas: {total_people}'
+        flash_msg = f'🚗 Veículo {vehicle_plate} registrado! Total: {total_people} pessoas'
     
     if alert_msg:
         flash(f'{flash_msg} | ⚠️ {alert_msg}', 'warning')
@@ -194,7 +173,6 @@ def new_access():
     return redirect(url_for('main.dashboard'))
 
 
-# ====================== MARCAR SAÍDA ======================
 @main.route("/access/exit/<int:log_id>")
 @login_required
 def mark_exit(log_id):
@@ -206,7 +184,6 @@ def mark_exit(log_id):
     return redirect(url_for('main.dashboard'))
 
 
-# ====================== REMOVER SAÍDA ======================
 @main.route("/access/remove_exit/<int:log_id>")
 @login_required
 def remove_exit(log_id):
@@ -218,14 +195,12 @@ def remove_exit(log_id):
     return redirect(url_for('main.dashboard'))
 
 
-# ====================== EDITAR REGISTRO COMPLETO ======================
 @main.route("/access/edit/<int:log_id>", methods=['GET', 'POST'])
 @login_required
 def edit_access(log_id):
     log = AccessLog.query.get_or_404(log_id)
     
     if request.method == 'POST':
-        # Atualizar campos principais
         log.vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
         log.trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
         log.vehicle_type = request.form.get('vehicle_type')
@@ -234,18 +209,15 @@ def edit_access(log_id):
         log.company = request.form.get('company', '').strip()
         log.observations = request.form.get('observations', '').strip() or None
         
-        # Verificar se a saída foi marcada/desmarcada no formulário
         exit_status = request.form.get('exit_status')
         if exit_status == 'checked_out' and not log.exit_time:
             log.exit_time = datetime.now()
         elif exit_status == 'still_inside':
             log.exit_time = None
         
-        # Remover acompanhantes existentes
         for companion in log.companions:
             db.session.delete(companion)
         
-        # Adicionar novos acompanhantes
         companion_names = request.form.getlist('companion_name[]')
         companion_docs = request.form.getlist('companion_doc[]')
         
@@ -258,13 +230,13 @@ def edit_access(log_id):
                 )
                 db.session.add(companion)
         
-        # Recalcular alertas de vencimento
         alert_msg = ""
         today = datetime.now().date()
         
-        auth_v = AuthorizedVehicle.query.filter_by(plate=log.vehicle_plate).first()
-        if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
-            alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
+        if log.vehicle_type != 'pedestre':
+            auth_v = AuthorizedVehicle.query.filter_by(plate=log.vehicle_plate).first()
+            if auth_v and auth_v.expiry_date and auth_v.expiry_date < today:
+                alert_msg += f"VEÍCULO VENCIDO ({auth_v.expiry_date.strftime('%d/%m/%Y')}). "
         
         if log.trailer_plate:
             auth_t = AuthorizedTrailer.query.filter_by(plate=log.trailer_plate).first()
@@ -281,7 +253,6 @@ def edit_access(log_id):
         flash('Registro atualizado com sucesso!', 'success')
         return redirect(url_for('main.dashboard'))
     
-    # GET - mostrar formulário de edição
     auth_vehicles = AuthorizedVehicle.query.all()
     auth_trailers = AuthorizedTrailer.query.all()
     auth_drivers = AuthorizedDriver.query.all()
@@ -303,66 +274,32 @@ def management():
         expiry = datetime.strptime(expiry_str, '%Y-%m-%d').date() if expiry_str else None
 
         if m_type == 'vehicle':
-            plate = request.form.get('vehicle_plate', '').upper().strip()
-            vehicle_type = request.form.get('vehicle_type')
-            company = request.form.get('company')
-            
-            if not plate:
-                flash('A matrícula do veículo é obrigatória!', 'danger')
-                return redirect(url_for('main.management'))
-            
             new_item = AuthorizedVehicle(
-                plate=plate,
-                vehicle_type=vehicle_type,
-                company=company,
+                plate=request.form.get('vehicle_plate', '').upper().strip(),
+                vehicle_type=request.form.get('vehicle_type'),
+                company=request.form.get('company'),
                 expiry_date=expiry
             )
-            db.session.add(new_item)
-            db.session.commit()
-            flash('Veículo cadastrado com sucesso!', 'success')
-            
         elif m_type == 'trailer':
-            plate = request.form.get('trailer_plate', '').upper().strip()
-            company = request.form.get('company')
-            
-            print(f"DEBUG: plate='{plate}', company='{company}'")  # Debug
-            
-            if not plate:
-                flash('A matrícula do reboque é obrigatória!', 'danger')
-                return redirect(url_for('main.management'))
-            
             new_item = AuthorizedTrailer(
-                plate=plate,
-                company=company,
+                plate=request.form.get('trailer_plate', '').upper().strip(),
+                company=request.form.get('company'),
                 expiry_date=expiry
             )
-            db.session.add(new_item)
-            db.session.commit()
-            flash('Reboque cadastrado com sucesso!', 'success')
-            
         elif m_type == 'driver':
-            name = request.form.get('driver_name')
-            document = request.form.get('driver_document')
-            company = request.form.get('company')
-            
-            if not name or not document:
-                flash('Nome e documento do condutor são obrigatórios!', 'danger')
-                return redirect(url_for('main.management'))
-            
             new_item = AuthorizedDriver(
-                name=name,
-                document=document,
-                company=company,
+                name=request.form.get('driver_name'),
+                document=request.form.get('driver_document'),
+                company=request.form.get('company'),
                 expiry_date=expiry
             )
-            db.session.add(new_item)
-            db.session.commit()
-            flash('Condutor cadastrado com sucesso!', 'success')
-            
         else:
             flash('Tipo inválido.', 'danger')
             return redirect(url_for('main.management'))
 
+        db.session.add(new_item)
+        db.session.commit()
+        flash('Autorização cadastrada com sucesso!', 'success')
         return redirect(url_for('main.management'))
 
     vehicles = AuthorizedVehicle.query.order_by(AuthorizedVehicle.plate).all()
@@ -415,7 +352,6 @@ def edit_authorized(item_type, id):
         flash(f'{title} atualizado com sucesso!', 'success')
         return redirect(url_for('main.management'))
 
-    # GET - mostra o formulário preenchido
     return render_template('main/edit_authorized.html', 
                            item=item, 
                            item_type=item_type, 
