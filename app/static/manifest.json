@@ -6,7 +6,7 @@
   "display": "standalone",
   "theme_color": "#1e3a8a",
   "background_color": "#f8fafc",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "/static/icons/icon-72x72.png",
@@ -49,6 +49,11 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+    {
+    "display": "standalone",
+    "orientation": "any",
+    "prefer_related_applications": false
     }
   ]
 }
