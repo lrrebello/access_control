@@ -13,26 +13,39 @@ def dashboard():
     filter_type = request.args.get('filter', 'active')
     search_query = request.args.get('search', '').strip()
     
+    # DATA ATUAL para filtros
+    today = datetime.now().date()
+    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+    today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
+    
     query = AccessLog.query
     
     # Filtrar por usuário - ADMINS veem tudo, outros veem só seus registros
     if not current_user.is_admin:
         query = query.filter(AccessLog.user_id == current_user.id)
     
+    # Filtro de busca
     if search_query:
         query = query.filter(
             (AccessLog.vehicle_plate.ilike(f'%{search_query}%')) |
             (AccessLog.driver_name.ilike(f'%{search_query}%')) |
             (AccessLog.company.ilike(f'%{search_query}%'))
         )
-
+    
+    # APLICAR FILTROS CORRETOS
     if filter_type == 'active':
+        # Veículos que ainda estão no local (sem saída)
         logs = query.filter(AccessLog.exit_time == None).order_by(AccessLog.entry_time.desc()).all()
     elif filter_type == 'finished':
-        logs = query.filter(AccessLog.exit_time != None).order_by(AccessLog.exit_time.desc()).all()
-    else:
+        # Registros finalizados (com saída) - APENAS DO DIA ATUAL
+        logs = query.filter(
+            AccessLog.exit_time != None,
+            db.func.date(AccessLog.exit_time) == today
+        ).order_by(AccessLog.exit_time.desc()).all()
+    else:  # 'all'
+        # Todos os registros
         logs = query.order_by(AccessLog.entry_time.desc()).all()
-
+    
     # CORRIGIDO: Filtrar ativos pelo usuário atual
     active_query = AccessLog.query.filter(AccessLog.exit_time == None)
     if not current_user.is_admin:
@@ -40,10 +53,12 @@ def dashboard():
     active_logs = active_query.all()
     total_vehicles_inside = len(active_logs)
     people_inside = sum(log.total_people for log in active_logs)
-
+    
     # CORRIGIDO: Contagem de saídas de HOJE pelo usuário atual
-    today = datetime.now().date()
-    today_exits_query = AccessLog.query.filter(db.func.date(AccessLog.exit_time) == today)
+    today_exits_query = AccessLog.query.filter(
+        AccessLog.exit_time != None,
+        db.func.date(AccessLog.exit_time) == today
+    )
     if not current_user.is_admin:
         today_exits_query = today_exits_query.filter(AccessLog.user_id == current_user.id)
     today_exits = today_exits_query.count()
@@ -57,23 +72,30 @@ def dashboard():
         today_movements_query = today_movements_query.filter(AccessLog.user_id == current_user.id)
     today_movements = today_movements_query.all()
     daily_people = sum(log.total_people for log in today_movements)
-
+    
+    # Estatísticas adicionais para os cards
+    # Total de veículos que entraram hoje
+    today_entries_count = AccessLog.query.filter(
+        db.func.date(AccessLog.entry_time) == today
+    ).count()
+    
     auth_vehicles = AuthorizedVehicle.query.all()
     auth_trailers = AuthorizedTrailer.query.all()
     auth_drivers = AuthorizedDriver.query.all()
-
+    
     return render_template('main/dashboard.html', 
                            logs=logs, 
                            total_vehicles=total_vehicles_inside,
                            people_inside=people_inside,
                            today_exits=today_exits,
                            daily_people=daily_people,
+                           today_entries_count=today_entries_count,
                            auth_vehicles=auth_vehicles,
                            auth_trailers=auth_trailers,
                            auth_drivers=auth_drivers,
                            filter_type=filter_type,
                            search_query=search_query,
-                           now=datetime.now())  # <-- ADICIONE ESTA LINHA)
+                           now=datetime.now())
 
 
 # ====================== REGISTRO DE ACESSO ======================
