@@ -4,6 +4,10 @@
     <link rel="manifest" href="/static/manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Acesso Vig">
     <title>Controle de Acesso - {% block title %}{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -71,17 +75,8 @@
                 max-width: 95%;
             }
             
-            /* Ajustar tabela para landscape */
             .table-responsive {
                 overflow-x: visible;
-            }
-            
-            /* Formulário mais largo em landscape */
-            .col-lg-3 {
-                width: 25%;
-            }
-            .col-lg-9 {
-                width: 75%;
             }
         }
 
@@ -90,14 +85,70 @@
             .container {
                 max-width: 90%;
             }
-            
-            /* Formulário mais compacto em retrato */
-            .col-lg-3 {
-                width: 100%;
+        }
+
+        /* Banner de instalação flutuante */
+        .install-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            color: white;
+            border-radius: 16px;
+            padding: 12px 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 9999;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .install-banner-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .install-banner-text {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .install-banner-text i {
+            font-size: 28px;
+        }
+
+        .install-banner-text small {
+            font-size: 11px;
+            opacity: 0.9;
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
             }
-            .col-lg-9 {
-                width: 100%;
+            to {
+                transform: translateY(0);
+                opacity: 1;
             }
+        }
+
+        @media (min-width: 768px) {
+            .install-banner {
+                left: auto;
+                right: 20px;
+                bottom: 20px;
+                max-width: 400px;
+            }
+        }
+
+        .ios-banner {
+            background: linear-gradient(135deg, #555, #333);
         }
     </style>
 </head>
@@ -141,6 +192,12 @@
                                 {% endif %}
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
+                                <li id="install-menu-item" style="display: none;">
+                                    <button id="install-from-menu" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left;">
+                                        <i class="bi bi-download"></i> Instalar App
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider" id="install-divider" style="display: none;"></li>
                                 <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
                                     <i class="bi bi-box-arrow-right"></i> Sair
                                 </a></li>
@@ -175,6 +232,27 @@
         {% block content %}{% endblock %}
     </div>
 
+    <!-- Banner de instalação PWA -->
+    <div id="install-banner" class="install-banner" style="display: none;">
+        <div class="install-banner-content">
+            <div class="install-banner-text">
+                <i class="bi bi-arrow-down-circle-fill"></i>
+                <div>
+                    <strong>Instalar App</strong>
+                    <small>Instale este app na tela inicial para acesso rápido</small>
+                </div>
+            </div>
+            <div>
+                <button id="install-btn" class="btn btn-primary btn-sm">
+                    <i class="bi bi-download"></i> Instalar
+                </button>
+                <button id="close-install-banner" class="btn btn-link btn-sm text-white">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Script do Modo Escuro -->
@@ -186,34 +264,142 @@
         // Definir tema inicial
         if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
             document.documentElement.setAttribute('data-bs-theme', 'dark');
-            document.getElementById('theme-icon').className = 'bi bi-sun-fill';
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.className = 'bi bi-sun-fill';
         } else {
             document.documentElement.setAttribute('data-bs-theme', 'light');
-            document.getElementById('theme-icon').className = 'bi bi-moon-stars';
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.className = 'bi bi-moon-stars';
         }
         
         // Função para alternar tema
-        document.getElementById('theme-toggle').addEventListener('click', function() {
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                
+                document.documentElement.setAttribute('data-bs-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                
+                const icon = document.getElementById('theme-icon');
+                if (newTheme === 'dark') {
+                    icon.className = 'bi bi-sun-fill';
+                } else {
+                    icon.className = 'bi bi-moon-stars';
+                }
+            });
+        }
+    </script>
+
+    <!-- Script PWA - Service Worker e Instalação -->
+    <script>
+        // Registrar Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('Service Worker registrado!', reg))
+                .catch(err => console.log('Erro no Service Worker:', err));
+        }
+
+        // PWA Installation
+        let deferredPrompt;
+        const installBanner = document.getElementById('install-banner');
+        const installBtn = document.getElementById('install-btn');
+        const closeBanner = document.getElementById('close-install-banner');
+        const installMenuItem = document.getElementById('install-menu-item');
+        const installDivider = document.getElementById('install-divider');
+        const installFromMenu = document.getElementById('install-from-menu');
+
+        // Detectar quando o PWA está disponível para instalação
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
             
-            document.documentElement.setAttribute('data-bs-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            
-            const icon = document.getElementById('theme-icon');
-            if (newTheme === 'dark') {
-                icon.className = 'bi bi-sun-fill';
-            } else {
-                icon.className = 'bi bi-moon-stars';
+            // Mostrar banner e menu apenas se não estiver instalado
+            if (!window.matchMedia('(display-mode: standalone)').matches) {
+                if (installBanner) installBanner.style.display = 'block';
+                if (installMenuItem) installMenuItem.style.display = 'block';
+                if (installDivider) installDivider.style.display = 'block';
             }
         });
-    </script>
-    <script>
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/static/sw.js')
-        .then(reg => console.log('Service Worker registrado!'))
-        .catch(err => console.log('Erro no Service Worker:', err));
-    }
+
+        // Botão de instalação do banner
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`Instalação: ${outcome}`);
+                    deferredPrompt = null;
+                    if (installBanner) installBanner.style.display = 'none';
+                    if (installMenuItem) installMenuItem.style.display = 'none';
+                    if (installDivider) installDivider.style.display = 'none';
+                }
+            });
+        }
+
+        // Botão de instalação do menu
+        if (installFromMenu) {
+            installFromMenu.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`Instalação: ${outcome}`);
+                    deferredPrompt = null;
+                    if (installBanner) installBanner.style.display = 'none';
+                    if (installMenuItem) installMenuItem.style.display = 'none';
+                    if (installDivider) installDivider.style.display = 'none';
+                }
+            });
+        }
+
+        // Fechar banner
+        if (closeBanner) {
+            closeBanner.addEventListener('click', () => {
+                if (installBanner) installBanner.style.display = 'none';
+            });
+        }
+
+        // Detectar se já está instalado (modo standalone)
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            if (installBanner) installBanner.style.display = 'none';
+            if (installMenuItem) installMenuItem.style.display = 'none';
+            if (installDivider) installDivider.style.display = 'none';
+        }
+
+        // Detectar se é iOS e mostrar instruções específicas
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+
+        if (isIOS() && !window.matchMedia('(display-mode: standalone)').matches) {
+            // Mostrar banner específico para iOS
+            const iosBanner = document.createElement('div');
+            iosBanner.className = 'install-banner ios-banner';
+            iosBanner.id = 'ios-banner';
+            iosBanner.innerHTML = `
+                <div class="install-banner-content">
+                    <div class="install-banner-text">
+                        <i class="bi bi-apple"></i>
+                        <div>
+                            <strong>Instalar no iPhone</strong>
+                            <small>Toque em Compartilhar <i class="bi bi-box-arrow-up"></i> → Adicionar à Tela de Início</small>
+                        </div>
+                    </div>
+                    <button id="close-ios-banner" class="btn btn-link btn-sm text-white">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(iosBanner);
+            
+            const closeIosBanner = document.getElementById('close-ios-banner');
+            if (closeIosBanner) {
+                closeIosBanner.addEventListener('click', () => {
+                    iosBanner.remove();
+                });
+            }
+        }
     </script>
 </body>
 </html>
