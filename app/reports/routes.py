@@ -154,13 +154,13 @@ def export_excel(logs):
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 def export_pdf(logs, start_date=None, end_date=None):
-    """Gera PDF com acompanhantes e posto"""
+    """Gera PDF com acompanhantes e posto - Cabeçalho fixo em todas as páginas"""
     from xhtml2pdf import pisa
     from io import BytesIO
     from PIL import Image
     import sys
     
-    # Caminho da logo
+    # Caminho da logo (opcional, pode remover se não precisar)
     logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
     resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
 
@@ -187,7 +187,7 @@ def export_pdf(logs, start_date=None, end_date=None):
         # Posto atual do usuário
         user_posto = current_user.current_workstation.name if current_user.current_workstation else 'Todos os Postos'
         
-        # Processar logs para garantir que os dados estão corretos
+        # Processar logs
         logs_data = []
         for log in logs:
             log_dict = {
@@ -201,6 +201,7 @@ def export_pdf(logs, start_date=None, end_date=None):
                 'exit_time': log.exit_time,
                 'observations': str(log.observations) if log.observations else '',
                 'duration': str(log.duration) if log.duration else '',
+                'alert_msg': str(log.alert_msg) if log.alert_msg else '',
                 'workstation': {'name': log.workstation.name if log.workstation else '-'},
                 'companions': []
             }
