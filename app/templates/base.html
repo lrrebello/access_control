@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-br" data-bs-theme="light">
 <head>
+    <link rel="manifest" href="/static/manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Acesso - {% block title %}{% endblock %}</title>
@@ -171,6 +172,13 @@
                 icon.className = 'bi bi-moon-stars';
             }
         });
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js')
+        .then(reg => console.log('Service Worker registrado!'))
+        .catch(err => console.log('Erro no Service Worker:', err));
+    }
     </script>
 </body>
 </html>
