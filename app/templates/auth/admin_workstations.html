@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Gerenciar Postos{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+
+<!-- Alerta informativo sobre acesso de administradores -->
+<div class="alert alert-info mb-3 d-flex align-items-center" role="alert">
+    <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+    <div>
+        <strong><i class="bi bi-shield-lock"></i> Administradores têm acesso automático!</strong><br>
+        Administradores podem acessar <strong>TODOS OS POSTOS ATIVOS</strong> sem necessidade de associação manual.
+        Apenas usuários normais precisam ser associados aos postos.
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h4><i class="bi bi-building"></i> Postos de Trabalho</h4>
-    <a href="{{ url_for('auth.add_workstation') }}" class="btn btn-success">
-        <i class="bi bi-plus-circle"></i> Novo Posto
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('auth.add_workstation') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Novo Posto
+        </a>
+        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#syncAdminModal">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar Admin
+        </button>
+    </div>
 </div>
 
 <div class="card shadow-sm">
@@ -18,13 +34,21 @@
                         <th>Localização</th>
                         <th>Descrição</th>
                         <th>Status</th>
+                        <th>Usuários</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for w in workstations %}
-                    <tr>
-                        <td><strong>{{ w.name }}</strong></td>
+                    <tr class="{% if not w.is_active %}table-secondary{% endif %}">
+                        <td>
+                            <strong>{{ w.name }}</strong>
+                            {% if w.is_active %}
+                                <span class="badge bg-success ms-1">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-1">Inativo</span>
+                            {% endif %}
+                        </td>
                         <td>{{ w.location or '-' }}</td>
                         <td>{{ w.description|truncate(50) or '-' }}</td>
                         <td>
@@ -35,18 +59,44 @@
                             {% endif %}
                         </td>
                         <td>
+                            <span class="badge bg-primary">{{ w.users|length }}</span>
+                            <small class="text-muted"> usuários</small>
+                            {% if w.is_active %}
+                                <br><small class="text-success">
+                                    <i class="bi bi-shield-check"></i> Admin acessa automaticamente
+                                </small>
+                            {% endif %}
+                        </td>
+                        <td>
                             <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('auth.workstation_users', id=w.id) }}" class="btn btn-info" title="Usuários">
+                                <a href="{{ url_for('auth.workstation_users', id=w.id) }}" class="btn btn-info" title="Gerenciar Usuários">
                                     <i class="bi bi-people"></i>
                                 </a>
-                                <a href="{{ url_for('auth.edit_workstation', id=w.id) }}" class="btn btn-warning" title="Editar">
+                                <a href="{{ url_for('auth.edit_workstation', id=w.id) }}" class="btn btn-warning" title="Editar Posto">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <a href="{{ url_for('auth.delete_workstation', id=w.id) }}" class="btn btn-danger" title="Excluir"
-                                   onclick="return confirm('Excluir este posto?')">
+                                {% if w.users|length == 0 or (w.users|length == 1 and w.users[0].user.username == 'admin') %}
+                                <a href="{{ url_for('auth.delete_workstation', id=w.id) }}" class="btn btn-danger" title="Excluir Posto"
+                                   onclick="return confirm('⚠️ ATENÇÃO! Tem certeza que deseja excluir o posto "{{ w.name }}"? Esta ação não pode ser desfeita!')">
                                     <i class="bi bi-trash"></i>
                                 </a>
+                                {% else %}
+                                <button class="btn btn-danger" disabled title="Não é possível excluir: posto possui usuários associados">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
                             </div>
+                         </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                            Nenhum posto de trabalho cadastrado.
+                            <br>
+                            <a href="{{ url_for('auth.add_workstation') }}" class="btn btn-sm btn-primary mt-2">
+                                <i class="bi bi-plus-circle"></i> Criar primeiro posto
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -55,4 +105,56 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Sincronização do Admin -->
+<div class="modal fade" id="syncAdminModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat"></i> Sincronizar Admin com Postos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Esta ação irá associar o usuário <strong>admin</strong> a <strong>TODOS OS POSTOS ATIVOS</strong> na tabela de associação.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Nota:</strong> Administradores já têm acesso automático a todos os postos ativos, 
+                    mesmo sem associação manual. Esta ação é opcional e serve apenas para:
+                    <ul class="mt-2 mb-0">
+                        <li>Manter registro visual dos acessos do admin</li>
+                        <li>Permitir que o admin apareça na lista de usuários do posto</li>
+                        <li>Compatibilidade com versões anteriores</li>
+                    </ul>
+                </div>
+                <p class="mt-2 mb-0">Deseja continuar?</p>
+            </div>
+            <div class="modal-footer">
+                <form method="POST" action="{{ url_for('auth.sync_admin_to_workstations') }}">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Sim, Sincronizar Admin</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-group .btn {
+        margin-right: 2px;
+    }
+    .btn-group .btn:last-child {
+        margin-right: 0;
+    }
+    .btn-group .btn.disabled, .btn-group .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+
+<script>
+    // Tooltips para botões desabilitados
+    document.querySelectorAll('.btn-group .btn:disabled').forEach(btn => {
+        btn.setAttribute('title', btn.getAttribute('title') || 'Ação indisponível');
+    });
+</script>
 {% endblock %}

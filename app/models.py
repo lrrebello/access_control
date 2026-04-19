@@ -31,7 +31,14 @@ class User(db.Model, UserMixin):
         """Retorna lista de postos que o usuário pode acessar"""
         from datetime import date
         today = date.today()
-        return [wu.workstation for wu in self.workstations if wu.is_active and wu.start_date <= today <= wu.end_date]
+        
+        # ADMINISTRADORES têm acesso a TODOS os postos ativos
+        if self.is_admin:
+            return Workstation.query.filter_by(is_active=True).all()
+        
+        # Usuários normais: apenas os postos associados e dentro da validade
+        return [wu.workstation for wu in self.workstations 
+                if wu.is_active and wu.start_date <= today <= wu.end_date]
 
 
 class Workstation(db.Model):

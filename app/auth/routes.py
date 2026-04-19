@@ -70,12 +70,20 @@ def logout():
 def select_workstation():
     workstations = current_user.accessible_workstations
     
+    # Se for admin e não tiver posto ativo, mostrar todos os postos
+    if not workstations:
+        if current_user.is_admin:
+            workstations = Workstation.query.filter_by(is_active=True).all()
+        else:
+            flash('Você não tem nenhum posto de trabalho associado. Contate o administrador.', 'warning')
+            return redirect(url_for('auth.logout'))
+    
     if request.method == 'POST':
         workstation_id = request.form.get('workstation_id')
         workstation = Workstation.query.get_or_404(workstation_id)
         
-        # Verificar se usuário tem permissão
-        if workstation not in current_user.accessible_workstations:
+        # Verificar se usuário tem permissão (admin pode acessar qualquer posto)
+        if not current_user.is_admin and workstation not in current_user.accessible_workstations:
             flash('Você não tem permissão para acessar este posto.', 'danger')
             return redirect(url_for('auth.select_workstation'))
         
@@ -86,15 +94,21 @@ def select_workstation():
         return redirect(url_for('main.dashboard'))
     
     return render_template('auth/select_workstation.html', workstations=workstations)
-
+    
 @auth.route("/switch-workstation", methods=['POST'])
 @login_required
 def switch_workstation():
     workstation_id = request.form.get('workstation_id')
     workstation = Workstation.query.get_or_404(workstation_id)
     
-    if workstation not in current_user.accessible_workstations:
+    # Admin pode acessar qualquer posto ativo
+    if not current_user.is_admin and workstation not in current_user.accessible_workstations:
         flash('Você não tem permissão para acessar este posto.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    # Admin só pode acessar postos ativos
+    if current_user.is_admin and not workstation.is_active:
+        flash('Este posto está inativo.', 'danger')
         return redirect(url_for('main.dashboard'))
     
     current_user.active_workstation_id = workstation.id
@@ -334,3 +348,38 @@ def remove_workstation_user(id):
     db.session.commit()
     flash('Usuário removido do posto!', 'success')
     return redirect(url_for('auth.workstation_users', id=workstation_id))
+
+@auth.route("/admin/sync-admin-to-workstations", methods=['POST'])
+@login_required
+def sync_admin_to_workstations():
+    if not current_user.is_admin:
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    workstations = Workstation.query.filter_by(is_active=True).all()
+    admin = User.query.filter_by(username='admin').first()
+    
+    if not admin:
+        flash('Usuário admin não encontrado!', 'danger')
+        return redirect(url_for('auth.admin_workstations'))
+    
+    count = 0
+    for workstation in workstations:
+        existing = WorkstationUser.query.filter_by(
+            user_id=admin.id,
+            workstation_id=workstation.id
+        ).first()
+        
+        if not existing:
+            assignment = WorkstationUser(
+                user_id=admin.id,
+                workstation_id=workstation.id,
+                start_date=datetime.now().date(),
+                end_date=datetime.now().date() + timedelta(days=3650)
+            )
+            db.session.add(assignment)
+            count += 1
+    
+    db.session.commit()
+    flash(f'Admin sincronizado com {count} novos postos! Total de {len(workstations)} postos ativos.', 'success')
+    return redirect(url_for('auth.admin_workstations'))
