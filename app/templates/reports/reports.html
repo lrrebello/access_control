@@ -41,7 +41,7 @@
                         <th>Tipo</th>
                         <th>
                             <a href="{{ url_for('reports.view_reports', sort_by='driver_name', sort_dir=('desc' if sort_by=='driver_name' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Condutor {{ '↑' if sort_by=='driver_name' and sort_dir=='asc' else '↓' if sort_by=='driver_name' else '' }}</a>
+                               class="text-decoration-none">Nome {{ '↑' if sort_by=='driver_name' and sort_dir=='asc' else '↓' if sort_by=='driver_name' else '' }}</a>
                         </th>
                         <th>Acompanhantes</th>
                         <th>Total</th>
