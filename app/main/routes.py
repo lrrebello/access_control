@@ -46,14 +46,23 @@ def dashboard():
     else:
         logs = query.order_by(AccessLog.entry_time.desc()).all()
     
-    # Estatísticas do posto atual
+    # CORRIGIDO: Separar veículos e pedestres
     active_query = AccessLog.query.filter(
         AccessLog.exit_time == None,
         AccessLog.workstation_id == workstation_id
     )
     active_logs = active_query.all()
-    total_vehicles_inside = len(active_logs)
+    
+    # Apenas veículos (excluindo pedestres) para o card "Veículos no Local"
+    vehicles_inside = [log for log in active_logs if log.vehicle_type != 'pedestre']
+    total_vehicles_inside = len(vehicles_inside)  # <-- CORRIGIDO: só veículos
+    
+    # Total de pessoas (motorista + acompanhantes de TODOS, incluindo pedestres)
     people_inside = sum(log.total_people for log in active_logs)
+    
+    # Apenas pedestres (para detalhamento opcional)
+    pedestrians_inside = [log for log in active_logs if log.vehicle_type == 'pedestre']
+    total_pedestrians_only = len(pedestrians_inside)
     
     today_exits = AccessLog.query.filter(
         AccessLog.exit_time != None,
@@ -66,23 +75,38 @@ def dashboard():
         AccessLog.workstation_id == workstation_id
     ).count()
     
+    # Entradas separadas por tipo
+    today_vehicles_entries = AccessLog.query.filter(
+        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.workstation_id == workstation_id,
+        AccessLog.vehicle_type != 'pedestre'
+    ).count()
+    
+    today_pedestrians_entries = AccessLog.query.filter(
+        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.workstation_id == workstation_id,
+        AccessLog.vehicle_type == 'pedestre'
+    ).count()
+    
     auth_vehicles = AuthorizedVehicle.query.all()
     auth_trailers = AuthorizedTrailer.query.all()
     auth_drivers = AuthorizedDriver.query.all()
     
     return render_template('main/dashboard.html', 
                            logs=logs, 
-                           total_vehicles=total_vehicles_inside,
+                           total_vehicles=total_vehicles_inside,  # <-- AGORA SÓ VEÍCULOS
+                           total_pedestrians=total_pedestrians_only,
                            people_inside=people_inside,
                            today_exits=today_exits,
                            today_entries=today_entries,
+                           today_vehicles_entries=today_vehicles_entries,
+                           today_pedestrians_entries=today_pedestrians_entries,
                            auth_vehicles=auth_vehicles,
                            auth_trailers=auth_trailers,
                            auth_drivers=auth_drivers,
                            filter_type=filter_type,
                            search_query=search_query,
                            now=datetime.now())
-
 
 # ====================== REGISTRO DE ACESSO ======================
 @main.route("/access/new", methods=['POST'])
