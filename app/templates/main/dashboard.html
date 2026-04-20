@@ -100,23 +100,25 @@
 
     <!-- Tabela de Registros - Lado Direito (maior espaço) -->
     <div class="col-lg-9 order-lg-1" id="table-sidebar">
-    <!-- CARDS DE ESTATÍSTICAS - SIMPLIFICADOS -->
+    <!-- CARDS DE ESTATÍSTICAS - COM LINKS -->
     <div class="row mb-4">
         <div class="col-md-3 col-6">
-            <div class="card border-0 bg-primary text-white shadow-sm card-stats">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0 opacity-75 small">Veículos no Local</h6>
-                            <h2 class="mb-0 fw-bold">{{ total_vehicles }}</h2>
+            <a href="{{ url_for('main.dashboard', filter='active') }}" class="text-decoration-none">
+                <div class="card border-0 bg-primary text-white shadow-sm card-stats">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0 opacity-75 small">Veículos no Local</h6>
+                                <h2 class="mb-0 fw-bold">{{ total_vehicles }}</h2>
+                            </div>
+                            <i class="bi bi-truck fs-1 opacity-50"></i>
                         </div>
-                        <i class="bi bi-truck fs-1 opacity-50"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 bg-success text-white shadow-sm card-stats">
+            <div class="card border-0 bg-success text-white shadow-sm">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -129,30 +131,34 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 bg-warning text-dark shadow-sm card-stats">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0 opacity-75 small">Entradas Hoje</h6>
-                            <h2 class="mb-0 fw-bold">{{ today_entries }}</h2>
+            <a href="{{ url_for('main.dashboard', filter='all') }}" class="text-decoration-none">
+                <div class="card border-0 bg-warning text-dark shadow-sm card-stats">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0 opacity-75 small">Entradas Hoje</h6>
+                                <h2 class="mb-0 fw-bold">{{ today_entries }}</h2>
+                            </div>
+                            <i class="bi bi-graph-up fs-1 opacity-50"></i>
                         </div>
-                        <i class="bi bi-graph-up fs-1 opacity-50"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 bg-secondary text-white shadow-sm card-stats">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0 opacity-75 small">Saídas Hoje</h6>
-                            <h2 class="mb-0 fw-bold">{{ today_exits }}</h2>
+            <a href="{{ url_for('main.dashboard', filter='finished') }}" class="text-decoration-none">
+                <div class="card border-0 bg-secondary text-white shadow-sm card-stats">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0 opacity-75 small">Saídas Hoje</h6>
+                                <h2 class="mb-0 fw-bold">{{ today_exits }}</h2>
+                            </div>
+                            <i class="bi bi-box-arrow-right fs-1 opacity-50"></i>
                         </div>
-                        <i class="bi bi-box-arrow-right fs-1 opacity-50"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
