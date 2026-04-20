@@ -225,6 +225,29 @@ def edit_access(log_id):
     log = AccessLog.query.get_or_404(log_id)
     
     if request.method == 'POST':
+        # Processar data/hora de entrada
+        entry_time_str = request.form.get('entry_time')
+        if entry_time_str:
+            entry_time = datetime.strptime(entry_time_str, '%Y-%m-%dT%H:%M')
+            log.entry_time = entry_time
+        else:
+            entry_time = log.entry_time
+        
+        # Processar data/hora de saída
+        exit_time_str = request.form.get('exit_time')
+        if exit_time_str:
+            exit_time = datetime.strptime(exit_time_str, '%Y-%m-%dT%H:%M')
+            
+            # VALIDAÇÃO: Data de saída não pode ser anterior à data de entrada
+            if exit_time < entry_time:
+                flash('A data/hora de saída não pode ser anterior à data/hora de entrada!', 'danger')
+                return redirect(url_for('main.edit_access', log_id=log.id))
+            
+            log.exit_time = exit_time
+        else:
+            log.exit_time = None
+        
+        # Resto dos campos
         log.vehicle_plate = request.form.get('vehicle_plate', '').upper().strip()
         log.trailer_plate = request.form.get('trailer_plate', '').upper().strip() or None
         log.vehicle_type = request.form.get('vehicle_type')
@@ -233,12 +256,7 @@ def edit_access(log_id):
         log.company = request.form.get('company', '').strip()
         log.observations = request.form.get('observations', '').strip() or None
         
-        exit_status = request.form.get('exit_status')
-        if exit_status == 'checked_out' and not log.exit_time:
-            log.exit_time = datetime.now()
-        elif exit_status == 'still_inside':
-            log.exit_time = None
-        
+        # Remover acompanhantes existentes e adicionar novos
         for companion in log.companions:
             db.session.delete(companion)
         
@@ -254,6 +272,7 @@ def edit_access(log_id):
                 )
                 db.session.add(companion)
         
+        # Recalcular alertas
         alert_msg = ""
         today = datetime.now().date()
         

@@ -16,12 +16,30 @@
                             <div class="alert alert-info">
                                 <strong>Status atual:</strong> 
                                 {% if log.exit_time %}
-                                    <span class="badge bg-success">SAÍDA REGISTRADA em {{ log.exit_time.strftime('%d/%m/%Y %H:%M') }}</span>
+                                    <span class="badge bg-success">SAÍDA REGISTRADA</span>
                                 {% else %}
-                                    <span class="badge bg-warning text-dark">VEÍCULO AINDA NO LOCAL (entrada em {{ log.entry_time.strftime('%d/%m/%Y %H:%M') }})</span>
+                                    <span class="badge bg-warning text-dark">VEÍCULO AINDA NO LOCAL</span>
                                 {% endif %}
                             </div>
                         </div>
+
+                        <!-- DATAS E HORAS -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Data e Hora de Entrada</label>
+                                <input type="datetime-local" name="entry_time" class="form-control" 
+                                       value="{{ log.entry_time.strftime('%Y-%m-%dT%H:%M') }}" required>
+                                <small class="text-muted">Formato: DD/MM/AAAA HH:MM</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Data e Hora de Saída</label>
+                                <input type="datetime-local" name="exit_time" class="form-control" 
+                                       value="{{ log.exit_time.strftime('%Y-%m-%dT%H:%M') if log.exit_time else '' }}">
+                                <small class="text-muted">Deixe em branco se ainda não saiu</small>
+                            </div>
+                        </div>
+
+                        <hr>
 
                         <!-- Dados do Veículo -->
                         <div class="col-md-6">
@@ -115,31 +133,6 @@
                             <textarea name="observations" class="form-control" rows="3">{{ log.observations or '' }}</textarea>
                         </div>
 
-                        <!-- Controle de Saída -->
-                        <div class="col-12 mt-3 border-top pt-2">
-                            <label class="form-label fw-bold">Status de Saída</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="exit_status" id="still_inside" 
-                                       value="still_inside" {% if not log.exit_time %}checked{% endif %}>
-                                <label class="form-check-label" for="still_inside">
-                                    <span class="badge bg-warning text-dark">Ainda no local</span> (sem horário de saída)
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="exit_status" id="checked_out" 
-                                       value="checked_out" {% if log.exit_time %}checked{% endif %}>
-                                <label class="form-check-label" for="checked_out">
-                                    <span class="badge bg-success">Já saiu</span> (marcar horário de saída como agora)
-                                </label>
-                            </div>
-                            {% if log.exit_time %}
-                            <div class="mt-2 text-muted small">
-                                ⏱️ Saída registrada originalmente em: {{ log.exit_time.strftime('%d/%m/%Y %H:%M:%S') }}
-                                <br>⚠️ Ao marcar "Ainda no local", o horário de saída será removido.
-                            </div>
-                            {% endif %}
-                        </div>
-
                         <!-- Botões -->
                         <div class="col-12 d-flex gap-2 mt-4">
                             <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary flex-fill">Cancelar</a>
@@ -230,7 +223,7 @@ function toggleVehicleFields() {
     const vehicleType = document.querySelector('select[name="vehicle_type"]').value;
     const vehiclePlateInput = document.querySelector('input[name="vehicle_plate"]');
     const trailerPlateInput = document.querySelector('input[name="trailer_plate"]');
-    const companyInput = document.querySelector('input[name="company"]');
+    const companyInputField = document.querySelector('input[name="company"]');
     
     if (vehicleType === 'pedestre') {
         if (vehiclePlateInput) {
@@ -246,8 +239,8 @@ function toggleVehicleFields() {
             trailerPlateInput.placeholder = 'Não aplicável';
             trailerPlateInput.value = '';
         }
-        if (companyInput) {
-            companyInput.required = false;
+        if (companyInputField) {
+            companyInputField.required = false;
         }
     } else {
         if (vehiclePlateInput) {
@@ -262,20 +255,22 @@ function toggleVehicleFields() {
             trailerPlateInput.disabled = false;
             trailerPlateInput.placeholder = 'Opcional';
         }
-        if (companyInput) {
-            companyInput.required = true;
+        if (companyInputField) {
+            companyInputField.required = true;
         }
     }
 }
 
-// Adicionar evento
-const vehicleTypeSelectEdit = document.querySelector('select[name="vehicle_type"]');
-if (vehicleTypeSelectEdit) {
-    vehicleTypeSelectEdit.addEventListener('change', toggleVehicleFields);
-    document.addEventListener('DOMContentLoaded', toggleVehicleFields);
-}
-// Inicializar botão de adicionar acompanhante
+// Inicializar
 document.addEventListener('DOMContentLoaded', function() {
+    // Controle de tipo de veículo
+    const vehicleTypeSelectEdit = document.querySelector('select[name="vehicle_type"]');
+    if (vehicleTypeSelectEdit) {
+        vehicleTypeSelectEdit.addEventListener('change', toggleVehicleFields);
+        toggleVehicleFields();
+    }
+    
+    // Botão de adicionar acompanhante
     const addBtn = document.getElementById('add-companion-btn');
     if (addBtn) {
         addBtn.addEventListener('click', function() {
@@ -283,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Adicionar evento de remover para os botões existentes
+    // Botões de remover existentes
     document.querySelectorAll('.remove-companion').forEach(btn => {
         btn.addEventListener('click', function() {
             this.closest('.companion-entry').remove();
