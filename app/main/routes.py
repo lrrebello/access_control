@@ -18,6 +18,9 @@ def dashboard():
     search_query = request.args.get('search', '').strip()
     
     today = datetime.now().date()
+    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+    today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
+    
     workstation_id = current_user.active_workstation_id
     
     query = AccessLog.query
@@ -36,65 +39,84 @@ def dashboard():
             (AccessLog.company.ilike(f'%{search_query}%'))
         )
     
+    # FILTROS DA TABELA
     if filter_type == 'active':
         logs = query.filter(AccessLog.exit_time == None).order_by(AccessLog.entry_time.desc()).all()
-    elif filter_type == 'finished':
+    elif filter_type == 'today_entries':
+        logs = query.filter(
+            AccessLog.entry_time >= today_start,
+            AccessLog.entry_time <= today_end
+        ).order_by(AccessLog.entry_time.desc()).all()
+    elif filter_type == 'today_exits':
         logs = query.filter(
             AccessLog.exit_time != None,
-            db.func.date(AccessLog.exit_time) == today
+            AccessLog.exit_time >= today_start,
+            AccessLog.exit_time <= today_end
         ).order_by(AccessLog.exit_time.desc()).all()
+    elif filter_type == 'finished':
+        logs = query.filter(AccessLog.exit_time != None).order_by(AccessLog.exit_time.desc()).all()
     else:
         logs = query.order_by(AccessLog.entry_time.desc()).all()
     
-    # CORRIGIDO: Separar veículos e pedestres
+    # ==================== ESTATÍSTICAS ====================
+    
+    # Veículos e pedestres ativos (sem saída)
     active_query = AccessLog.query.filter(
         AccessLog.exit_time == None,
         AccessLog.workstation_id == workstation_id
     )
     active_logs = active_query.all()
     
-    # Apenas veículos (excluindo pedestres) para o card "Veículos no Local"
+    # Apenas veículos (excluindo pedestres)
     vehicles_inside = [log for log in active_logs if log.vehicle_type != 'pedestre']
-    total_vehicles_inside = len(vehicles_inside)  # <-- CORRIGIDO: só veículos
+    total_vehicles_inside = len(vehicles_inside)
     
-    # Total de pessoas (motorista + acompanhantes de TODOS, incluindo pedestres)
+    # Total de pessoas (motorista + acompanhantes)
     people_inside = sum(log.total_people for log in active_logs)
     
-    # Apenas pedestres (para detalhamento opcional)
+    # Apenas pedestres
     pedestrians_inside = [log for log in active_logs if log.vehicle_type == 'pedestre']
     total_pedestrians_only = len(pedestrians_inside)
     
+    # Saídas de HOJE
     today_exits = AccessLog.query.filter(
         AccessLog.exit_time != None,
-        db.func.date(AccessLog.exit_time) == today,
+        AccessLog.exit_time >= today_start,
+        AccessLog.exit_time <= today_end,
         AccessLog.workstation_id == workstation_id
     ).count()
     
+    # Entradas de HOJE
     today_entries = AccessLog.query.filter(
-        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.entry_time >= today_start,
+        AccessLog.entry_time <= today_end,
         AccessLog.workstation_id == workstation_id
     ).count()
     
-    # Entradas separadas por tipo
+    # Entradas de veículos HOJE
     today_vehicles_entries = AccessLog.query.filter(
-        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.entry_time >= today_start,
+        AccessLog.entry_time <= today_end,
         AccessLog.workstation_id == workstation_id,
         AccessLog.vehicle_type != 'pedestre'
     ).count()
     
+    # Entradas de pedestres HOJE
     today_pedestrians_entries = AccessLog.query.filter(
-        db.func.date(AccessLog.entry_time) == today,
+        AccessLog.entry_time >= today_start,
+        AccessLog.entry_time <= today_end,
         AccessLog.workstation_id == workstation_id,
         AccessLog.vehicle_type == 'pedestre'
     ).count()
     
+    # Dados para autocomplete
     auth_vehicles = AuthorizedVehicle.query.all()
     auth_trailers = AuthorizedTrailer.query.all()
     auth_drivers = AuthorizedDriver.query.all()
     
     return render_template('main/dashboard.html', 
                            logs=logs, 
-                           total_vehicles=total_vehicles_inside,  # <-- AGORA SÓ VEÍCULOS
+                           total_vehicles=total_vehicles_inside,
                            total_pedestrians=total_pedestrians_only,
                            people_inside=people_inside,
                            today_exits=today_exits,
