@@ -266,22 +266,24 @@
                                     </span>
                                 </td>
                                 {% endif %}
-                                <td>
+                                <td class="text-center">
                                     <div class="btn-group btn-group-sm">
                                         {% if not log.exit_time %}
-                                            <a href="{{ url_for('main.mark_exit', log_id=log.id) }}" 
-                                               class="btn btn-danger" title="Registrar Saída">
-                                                <i class="bi bi-box-arrow-right"></i>
-                                            </a>
+                                            <form method="POST" action="{{ url_for('main.exit_access', log_id=log.id) }}" style="display: inline;">
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Registrar Saída">
+                                                    <i class="bi bi-box-arrow-right"></i>
+                                                </button>
+                                            </form>
                                         {% else %}
-                                            <a href="{{ url_for('main.remove_exit', log_id=log.id) }}" 
-                                               class="btn btn-warning" title="Desmarcar Saída"
-                                               onclick="return confirm('Remover a saída deste registro?')">
-                                                <i class="bi bi-arrow-counterclockwise"></i>
-                                            </a>
+                                            <form method="POST" action="{{ url_for('main.remove_exit', log_id=log.id) }}" style="display: inline;">
+                                                <button type="submit" class="btn btn-warning btn-sm" title="Desmarcar Saída" 
+                                                        onclick="return confirm('Remover a saída deste registro?')">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            </form>
                                         {% endif %}
                                         <a href="{{ url_for('main.edit_access', log_id=log.id) }}" 
-                                           class="btn btn-outline-primary" title="Editar">
+                                        class="btn btn-outline-primary btn-sm" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     </div>
