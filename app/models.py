@@ -222,3 +222,16 @@ class Occurrence(db.Model):
             minutes = (diff.seconds % 3600) // 60
             return f"{hours}h {minutes}m"
         return "Em andamento"
+    
+# ==================== LOGO ====================
+
+    
+class SystemConfig(db.Model):
+    """Configurações do sistema"""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    def __repr__(self):
+        return f"<SystemConfig {self.key}={self.value}>"

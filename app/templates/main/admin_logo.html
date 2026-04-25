@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Configurar Logo{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-image"></i> Configurar Logo do Sistema</h5>
+            </div>
+            <div class="card-body">
+                <!-- Logo atual -->
+                <div class="text-center mb-4">
+                    <h6 class="text-muted mb-3">Logo atual:</h6>
+                    <div class="border rounded p-3 bg-light">
+                        <img src="{{ url_for('static', filename='logo_resized.png') }}" 
+                             alt="Logo atual" 
+                             style="max-height: 60px;"
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'60\' viewBox=\'0 0 200 60\'%3E%3Crect width=\'200\' height=\'60\' fill=\'%23f3f4f6\'/%3E%3Ctext x=\'100\' y=\'35\' text-anchor=\'middle\' fill=\'%239ca3af\' font-size=\'12\'%3ENenhuma logo%3C/text%3E%3C/svg%3E'">
+                    </div>
+                </div>
+                
+                <!-- Upload de nova logo -->
+                <form method="POST" action="{{ url_for('main.upload_logo') }}" enctype="multipart/form-data" class="mb-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nova logo</label>
+                        <input type="file" name="logo" class="form-control" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
+                        <small class="text-muted">
+                            Formatos aceitos: PNG, JPG, JPEG, GIF, WEBP.<br>
+                            A imagem será redimensionada automaticamente para 220x60 pixels.
+                        </small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Fazer Upload
+                    </button>
+                </form>
+                
+                <hr>
+                
+                <!-- Restaurar padrão -->
+                <form method="POST" action="{{ url_for('main.restore_default_logo') }}" class="mb-3">
+                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Remover a logo atual?')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Remover / Restaurar Padrão
+                    </button>
+                </form>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Dica:</strong> A logo aparece no cabeçalho do sistema e nos relatórios PDF.
+                    Para melhores resultados, use uma imagem com fundo transparente (PNG).
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Voltar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -481,3 +481,94 @@ def delete_occurrence(id):
     
     flash("Relatório excluído com sucesso!", "success")
     return redirect(url_for("main.occurrences"))
+
+# ====================== CONFIGURAÇÕES DO SISTEMA ======================
+
+@main.route("/admin/logo")
+@login_required
+def admin_logo():
+    """Página de configuração da logo"""
+    if not current_user.is_admin:
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    return render_template('main/admin_logo.html')
+
+
+@main.route("/admin/logo/upload", methods=['POST'])
+@login_required
+def upload_logo():
+    """Upload da nova logo"""
+    if not current_user.is_admin:
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    from PIL import Image
+    import os
+    
+    if 'logo' not in request.files:
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('main.admin_logo'))
+    
+    file = request.files['logo']
+    
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.', 'danger')
+        return redirect(url_for('main.admin_logo'))
+    
+    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+        flash('Formato não suportado. Use PNG, JPG, JPEG, GIF ou WEBP.', 'danger')
+        return redirect(url_for('main.admin_logo'))
+    
+    # Salvar logo original
+    logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
+    file.save(logo_path)
+    
+    # Criar versão redimensionada
+    resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
+    try:
+        img = Image.open(logo_path).convert("RGBA")
+        img.thumbnail((220, 60), Image.Resampling.LANCZOS)
+        img.save(resized_logo_path, format='PNG', optimize=True)
+    except Exception as e:
+        print(f"Erro ao redimensionar logo: {e}")
+    
+    flash('Logo atualizada com sucesso!', 'success')
+    return redirect(url_for('main.admin_logo'))
+
+
+@main.route("/admin/logo/restore", methods=['POST'])
+@login_required
+def restore_default_logo():
+    """Restaurar logo padrão"""
+    if not current_user.is_admin:
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    import os
+    
+    # Caminho da logo padrão (se existir)
+    default_logo_path = os.path.join(current_app.root_path, 'static', 'logo_default.png')
+    logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
+    resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
+    
+    # Se existir logo padrão, copiar
+    if os.path.exists(default_logo_path):
+        import shutil
+        shutil.copy(default_logo_path, logo_path)
+        
+        # Recriar redimensionada
+        from PIL import Image
+        img = Image.open(logo_path).convert("RGBA")
+        img.thumbnail((220, 60), Image.Resampling.LANCZOS)
+        img.save(resized_logo_path, format='PNG', optimize=True)
+        flash('Logo restaurada para o padrão!', 'success')
+    else:
+        # Se não existir logo padrão, apenas remover a atual
+        if os.path.exists(logo_path):
+            os.remove(logo_path)
+        if os.path.exists(resized_logo_path):
+            os.remove(resized_logo_path)
+        flash('Logo removida. O sistema usará o texto padrão.', 'warning')
+    
+    return redirect(url_for('main.admin_logo'))
