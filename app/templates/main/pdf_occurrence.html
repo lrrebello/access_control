@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório de Ocorrências</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 1.5cm 1cm 1.5cm 1cm;
+
+            /* Definir o frame principal para o conteúdo */
+            @frame content_frame {
+                left: 1cm;
+                right: 1cm;
+                top: 1.5cm;
+                bottom: 3cm; /* Espaço para o rodapé */
+            }
+
+            /* Definir o frame para o rodapé (assinatura) */
+            @frame footer_frame {
+                -pdf-frame-content: footer-content; /* ID do elemento que será o rodapé */
+                left: 1cm;
+                right: 1cm;
+                top: 26cm; /* Posição vertical do rodapé */
+                height: 2cm; /* Altura do rodapé */
+            }
+        }
+        
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8pt;
+            color: #333;
+            background-color: white;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Cabeçalho - Usando tabela para compatibilidade com xhtml2pdf */
+        .header-table {
+            width: 100%;
+            border-bottom: 2px solid #3b82f6;
+            background-color: #f3f4f6;
+            margin-bottom: 15px;
+        }
+        
+        .header-table td {
+            padding: 5px 10px;
+            vertical-align: middle;
+        }
+
+        .header-logo {
+            max-height: 40px;
+            max-width: 150px;
+        }
+        
+        .header-title {
+            text-align: right;
+        }
+        
+        .header-title .title {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+        
+        .header-title .info {
+            font-size: 6pt;
+            color: #4b5563;
+            margin-top: 2px;
+        }
+        
+        /* Horários */
+        .shift-line {
+            margin: 15px 0 15px 0;
+            font-size: 8pt;
+            text-align: left;
+        }
+        
+        /* Conteúdo */
+        .content-box {
+            border: 1px solid #9ca3af;
+            padding: 10px;
+            font-size: 8pt;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            background-color: #fefefe;
+            min-height: 250px;
+        }
+        
+        /* Assinatura - Agora será um static-content */
+        .signature {
+            text-align: center;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+            width: 250px;
+            margin-left: auto;
+            margin-right: auto;
+            /* margin-top removido, pois o frame controlará a posição */
+        }
+        
+        .signature-label {
+            font-size: 7pt;
+            color: #6b7280;
+        }
+        
+        .signature-name {
+            font-size: 9pt;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+        
+        .badge {
+            background-color: #e5e7eb;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 8pt;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho - Refatorado para usar tabela para compatibilidade com xhtml2pdf -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%;">
+                <img src="{{ url_for('static', filename='logo_resized.png', _external=True) }}" class="header-logo" onerror="this.style.display='none'">
+            </td>
+            <td style="width: 50%; text-align: right;">
+                <div class="header-title">
+                    <div class="title">RELATÓRIO DE OCORRÊNCIAS</div>
+                    <div class="info">
+                        {{ occurrence.user.username }} | {{ occurrence.workstation.name }} | {{ occurrence.created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Horários -->
+    <div class="shift-line">
+        <strong>Início do turno:</strong> {{ occurrence.shift_start.strftime('%d/%m/%Y %H:%M') }} &nbsp;&nbsp;&nbsp;&nbsp;
+        <strong>Término do turno:</strong> 
+        {% if occurrence.shift_end %}
+            {{ occurrence.shift_end.strftime('%d/%m/%Y %H:%M') }}
+        {% else %}
+            <span class="badge">Em andamento</span>
+        {% endif %}
+    </div>
+    
+    <!-- Conteúdo - Aplicando o filtro nl2br -->
+    <div class="content-box">
+        {{ occurrence.content|nl2br|safe or 'Nenhuma ocorrência registrada.' }}
+    </div>
+    
+    <!-- Conteúdo estático para o rodapé -->
+    <div id="footer-content">
+        <div class="signature">
+            <div class="signature-label">Assinatura Digital</div>
+            <div class="signature-name">{{ occurrence.signature or '_________________________' }}</div>
+        </div>
+    </div>
+</body>
+</html>

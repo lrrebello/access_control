@@ -192,3 +192,33 @@ class AccessLog(db.Model):
         if days > 0:
             return f"{days}d {hours}h {minutes}m"
         return f"{hours}h {minutes}m"
+    
+# ==================== REGISTRO DE OCORRENCIAS ====================
+
+class Occurrence(db.Model):
+    """Registro de ocorrências do vigilante"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    workstation_id = db.Column(db.Integer, db.ForeignKey('workstation.id'), nullable=False)
+    shift_start = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    shift_end = db.Column(db.DateTime, nullable=True)
+    content = db.Column(db.Text, nullable=True)  # Texto das ocorrências
+    signature = db.Column(db.Text, nullable=True)  # Assinatura digital (base64)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    user = db.relationship('User', backref='occurrences')
+    workstation = db.relationship('Workstation', backref='occurrences')
+    
+    def __repr__(self):
+        return f"<Occurrence {self.id} - {self.user.username}>"
+    
+    @property
+    def duration(self):
+        if self.shift_end:
+            diff = self.shift_end - self.shift_start
+            hours = diff.seconds // 3600
+            minutes = (diff.seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+        return "Em andamento"

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Ocorrências{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-journal-text"></i> Relatórios de Ocorrências</h4>
+    <a href="{{ url_for('main.new_occurrence') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Novo Relatório
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Turno</th>
+                        <th>Duração</th>
+                        <th>Última atualização</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for occ in occurrences %}
+                    <tr>
+                        <td>{{ occ.shift_start.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            Início: {{ occ.shift_start.strftime('%H:%M') }}<br>
+                            {% if occ.shift_end %}
+                            Término: {{ occ.shift_end.strftime('%H:%M') }}
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Em andamento</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ occ.duration }}</td>
+                        <td>{{ occ.updated_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            {% if occ.shift_end %}
+                            <span class="badge bg-success">Finalizado</span>
+                            {% else %}
+                            <span class="badge bg-info">Aberto</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('main.edit_occurrence', id=occ.id) }}" class="btn btn-warning" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{{ url_for('main.preview_occurrence', id=occ.id) }}" class="btn btn-info" title="Visualizar" target="_blank">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('main.pdf_occurrence', id=occ.id) }}" class="btn btn-danger" title="PDF">
+                                    <i class="bi bi-file-pdf"></i>
+                                </a>
+                                <a href="{{ url_for('main.delete_occurrence', id=occ.id) }}" class="btn btn-secondary" title="Excluir"
+                                   onclick="return confirm('Excluir este relatório?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                         </td>
+                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                            Nenhum relatório de ocorrências encontrado.
+                            <br>
+                            <a href="{{ url_for('main.new_occurrence') }}" class="btn btn-sm btn-primary mt-2">
+                                <i class="bi bi-plus-circle"></i> Criar primeiro relatório
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

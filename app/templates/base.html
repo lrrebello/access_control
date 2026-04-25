@@ -181,6 +181,9 @@
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.view_reports') }}">
                             <i class="bi bi-file-text"></i> Relatórios
                         </a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.occurrences') }}">
+                            <i class="bi bi-journal-text"></i> Ocorrências
+                        </a></li>
                         {% if current_user.is_admin %}
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">

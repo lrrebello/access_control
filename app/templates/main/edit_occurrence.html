@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Editar Ocorrências{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Relatório de Ocorrências</h5>
+                <div>
+                    <span id="save-status" class="badge bg-success me-2">Salvo</span>
+                    <a href="{{ url_for('main.occurrences') }}" class="btn btn-outline-light btn-sm">Voltar</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="occurrence-form">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Data e Hora de Início do Turno</label>
+                            <input type="datetime-local" name="shift_start" class="form-control" 
+                                   value="{{ occurrence.shift_start.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Data e Hora de Término do Turno</label>
+                            <input type="datetime-local" name="shift_end" class="form-control" 
+                                   value="{{ occurrence.shift_end.strftime('%Y-%m-%dT%H:%M') if occurrence.shift_end else '' }}">
+                            <small class="text-muted">Deixe em branco se ainda não encerrou</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Status</label>
+                            <div class="mt-2">
+                                {% if occurrence.shift_end %}
+                                <span class="badge bg-success">Turno finalizado</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Turno em andamento</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="form-label fw-bold">Relato das Ocorrências</label>
+                        <textarea id="occurrence-content" name="content" class="form-control" rows="15" 
+                                  placeholder="Descreva todas as ocorrências do turno...&#10;&#10;Exemplos:&#10;- Horário de chegada e saída de veículos&#10;- Visitas e autorizações&#10;- Problemas ou intercorrências&#10;- Repasses para o próximo turno">{{ occurrence.content or '' }}</textarea>
+                        <small class="text-muted">O relatório é salvo automaticamente enquanto você digita</small>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="form-label fw-bold">Assinatura Digital</label>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <input type="text" name="signature" id="signature" class="form-control" 
+                                       placeholder="Nome completo do responsável" value="{{ occurrence.signature or '' }}">
+                                <small class="text-muted">Digite seu nome completo como assinatura digital</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-secondary w-100" onclick="clearSignature()">
+                                    <i class="bi bi-eraser"></i> Limpar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Salvar
+                        </button>
+                        {% if occurrence.shift_end %}
+                        <a href="{{ url_for('main.preview_occurrence', id=occurrence.id) }}" class="btn btn-info" target="_blank">
+                            <i class="bi bi-eye"></i> Visualizar
+                        </a>
+                        <a href="{{ url_for('main.pdf_occurrence', id=occurrence.id) }}" class="btn btn-danger">
+                            <i class="bi bi-file-pdf"></i> Gerar PDF
+                        </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let autoSaveTimer;
+let isDirty = false;
+
+function autoSave() {
+    if (!isDirty) return;
+    
+    const content = document.getElementById('occurrence-content').value;
+    const signature = document.getElementById('signature').value;
+    const shiftEnd = document.querySelector('input[name="shift_end"]').value;
+    
+    fetch('{{ url_for("main.auto_save_occurrence", id=occurrence.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            content: content,
+            signature: signature,
+            shift_end: shiftEnd
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const status = document.getElementById('save-status');
+            status.textContent = 'Salvo automaticamente';
+            status.className = 'badge bg-success';
+            setTimeout(() => {
+                status.textContent = 'Salvo';
+                status.className = 'badge bg-success';
+            }, 2000);
+            isDirty = false;
+        }
+    })
+    .catch(error => {
+        console.error('Erro no auto-save:', error);
+        const status = document.getElementById('save-status');
+        status.textContent = 'Erro ao salvar';
+        status.className = 'badge bg-danger';
+    });
+}
+
+// Detectar alterações nos campos
+document.getElementById('occurrence-content').addEventListener('input', function() {
+    isDirty = true;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(autoSave, 3000); // Salva após 3 segundos sem digitar
+});
+
+document.getElementById('signature').addEventListener('input', function() {
+    isDirty = true;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(autoSave, 3000);
+});
+
+document.querySelector('input[name="shift_end"]').addEventListener('change', function() {
+    isDirty = true;
+    autoSave();
+});
+
+function clearSignature() {
+    document.getElementById('signature').value = '';
+    isDirty = true;
+    autoSave();
+}
+
+// Salvar antes de fechar a página
+window.addEventListener('beforeunload', function(e) {
+    if (isDirty) {
+        autoSave();
+    }
+});
+</script>
+{% endblock %}
