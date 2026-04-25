@@ -162,58 +162,39 @@
         </div>
     </div>
 
-    <!-- Linha extra apenas se quiser detalhamento de entradas por tipo (opcional) >
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card border-0 bg-light text-dark shadow-sm">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0 small"><i class="bi bi-car-front"></i> Entradas Veículos</h6>
-                            <h4 class="mb-0">{{ today_vehicles_entries }}</h4>
-                        </div>
-                        <div class="text-end">
-                            <h6 class="mb-0 small"><i class="bi bi-person-walking"></i> Entradas Pedestres</h6>
-                            <h4 class="mb-0">{{ today_pedestrians_entries }}</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card border-0 bg-light text-dark shadow-sm">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0 small"><i class="bi bi-truck"></i> Veículos no Local</h6>
-                            <h4 class="mb-0">{{ total_vehicles }}</h4>
-                        </div>
-                        <div class="text-end">
-                            <h6 class="mb-0 small"><i class="bi bi-person-walking"></i> Pedestres no Local</h6>
-                            <h4 class="mb-0">{{ total_pedestrians }}</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>-->
         <!-- Tabela de Registros -->
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 flex-wrap gap-2">
                 <h6 class="mb-0">
                     <i class="bi bi-table me-2"></i>
-                    {% if filter_type == 'active' %}📌 Veículos/Pedestres no Local
-                    {% elif filter_type == 'finished' %}✅ Registros Finalizados
-                    {% else %}📋 Todos os Registros{% endif %}
+                    {% if filter_type == 'active' %}
+                        📌 Veículos/Pedestres no Local
+                    {% elif filter_type == 'today_entries' %}
+                        📥 Entradas Registradas Hoje
+                    {% elif filter_type == 'today_exits' %}
+                        📤 Saídas Registradas Hoje
+                    {% elif filter_type == 'finished' %}
+                        ✅ Registros Finalizados
+                    {% else %}
+                        📋 Todos os Registros
+                    {% endif %}
                 </h6>
-                <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
-                    <input type="hidden" name="filter" value="{{ filter_type }}">
-                    <input type="text" name="search" class="form-control form-control-sm" 
-                           placeholder="Buscar..." value="{{ search_query }}" style="width: 200px;">
-                    <button type="submit" class="btn btn-dark btn-sm">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </form>
+                <div class="d-flex gap-2 align-items-center">
+                    <!-- Botão de PDF para saídas de hoje -->
+                    {% if filter_type == 'today_exits' and logs|length > 0 %}
+                    <a href="{{ url_for('reports.export_today_exits_pdf') }}" class="btn btn-sm btn-danger" title="Exportar PDF das saídas de hoje">
+                        <i class="bi bi-file-pdf-fill"></i> Exportar PDF
+                    </a>
+                    {% endif %}
+                    <form class="d-flex gap-2" method="GET" action="{{ url_for('main.dashboard') }}">
+                        <input type="hidden" name="filter" value="{{ filter_type }}">
+                        <input type="text" name="search" class="form-control form-control-sm" 
+                               placeholder="Buscar..." value="{{ search_query }}" style="width: 200px;">
+                        <button type="submit" class="btn btn-dark btn-sm">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </form>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -318,6 +299,15 @@
                     </table>
                 </div>
             </div>
+            <!-- Rodapé da tabela com botão PDF para saídas de hoje -->
+            {% if filter_type == 'today_exits' and logs|length > 0 %}
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Total de saídas hoje: <strong>{{ logs|length }}</strong></span>
+                <a href="{{ url_for('reports.export_today_exits_pdf') }}" class="btn btn-sm btn-danger">
+                    <i class="bi bi-file-pdf-fill"></i> Exportar PDF das Saídas de Hoje
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

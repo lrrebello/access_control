@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 2.5cm 1cm 1.5cm 1cm;
+        }
+        
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8pt;
+            color: #333;
+            background-color: white;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Cabeçalho fixo */
+        .header-fixed {
+            position: fixed;
+            top: -2cm;
+            left: 0;
+            right: 0;
+            height: 1.6cm;
+            background-color: #f3f4f6;
+            border-bottom: 2px solid #dc2626;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-logo {
+            max-height: 45px;
+            max-width: 180px;
+        }
+        
+        .header-title {
+            text-align: right;
+        }
+        
+        .header-title .title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #dc2626;
+        }
+        
+        .header-title .info {
+            font-size: 7pt;
+            color: #4b5563;
+            margin-top: 3px;
+        }
+        
+        /* Rodapé fixo */
+        .footer-fixed {
+            position: fixed;
+            bottom: -1.2cm;
+            left: 0;
+            right: 0;
+            height: 1cm;
+            border-top: 1px solid #e5e7eb;
+            padding: 5px 10px;
+            font-size: 7pt;
+            color: #6b7280;
+            background-color: white;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            font-size: 7pt;
+        }
+        
+        th, td {
+            border: 1px solid #9ca3af;
+            padding: 4px 3px;
+            text-align: left;
+            vertical-align: top;
+        }
+        
+        th {
+            background-color: #dc2626;
+            color: white;
+            font-weight: bold;
+            font-size: 7pt;
+            text-align: center;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        
+        .em-local {
+            color: #e11d48;
+            font-weight: bold;
+        }
+        
+        .badge-posto {
+            background-color: #e5e7eb;
+            color: #1f2937;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 6pt;
+            font-weight: normal;
+            display: inline-block;
+        }
+        
+        .companions-list {
+            margin: 0;
+            padding-left: 12px;
+        }
+        
+        .companions-list li {
+            margin-bottom: 2px;
+            font-size: 6.5pt;
+        }
+        
+        .alert-msg {
+            color: #dc2626;
+            font-size: 6pt;
+        }
+        
+        /* Ajuste de larguras das colunas */
+        .col-veiculo { width: 12%; }
+        .col-tipo { width: 6%; }
+        .col-condutor { width: 15%; }
+        .col-acompanhantes { width: 20%; }
+        .col-empresa { width: 10%; }
+        .col-entrada { width: 12%; }
+        .col-saida { width: 12%; }
+        .col-posto { width: 8%; }
+        .col-observacao { width: 10%; }
+        
+        table {
+            table-layout: fixed;
+        }
+        
+        .total-registros {
+            margin-top: 10px;
+            text-align: right;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Cabeçalho fixo -->
+<div class="header-fixed">
+    <div class="header-logo-area">
+        {% if logo_path %}
+        <img src="{{ logo_path }}" class="header-logo" alt="Logo">
+        {% endif %}
+    </div>
+    <div class="header-title">
+        <div class="title">{{ titulo }}</div>
+        <div class="info">
+            Posto: {{ user_posto }} | 
+            Gerado por: {{ user.username }}{% if user.is_admin %} (Admin){% endif %} | 
+            {{ now.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+    </div>
+</div>
+
+<!-- Rodapé fixo -->
+<div class="footer-fixed">
+    <span>Período: {{ start_date }} a {{ end_date }}</span>
+    <span>Página <span class="page-number"></span></span>
+</div>
+
+<!-- Tabela principal -->
+<table>
+    <thead>
+        <tr>
+            <th class="col-veiculo">Matrícula</th>
+            <th class="col-tipo">Tipo</th>
+            <th class="col-condutor">Condutor</th>
+            <th class="col-acompanhantes">Acompanhantes</th>
+            <th class="col-empresa">Empresa</th>
+            <th class="col-entrada">Entrada</th>
+            <th class="col-saida">Saída</th>
+            <th class="col-posto">Posto</th>
+            <th class="col-observacao">Observação</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td class="col-veiculo">
+                <strong>{{ log.vehicle_plate }}</strong>
+                {% if log.trailer_plate %}
+                    <br><span style="font-size: 6pt;">R: {{ log.trailer_plate }}</span>
+                {% endif %}
+                {% if log.alert_msg %}
+                    <br><span class="alert-msg">⚠️ {{ log.alert_msg|truncate(30) }}</span>
+                {% endif %}
+            </td>
+            <td class="col-tipo">{{ log.vehicle_type }}</td>
+            <td class="col-condutor">
+                <strong>{{ log.driver_name }}</strong>
+                <br><span style="font-size: 6pt; color: #6b7280;">{{ log.driver_doc }}</span>
+            </td>
+            <td class="col-acompanhantes">
+                {% if log.companions %}
+                    <ul class="companions-list">
+                    {% for companion in log.companions %}
+                        <li>{{ companion.name }}<br><span style="font-size: 6pt; color: #6b7280;">{{ companion.document }}</span></li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <span style="color: #999;">—</span>
+                {% endif %}
+            </td>
+            <td class="col-empresa">{{ log.company }}</td>
+            <td class="col-entrada">{{ log.entry_time.strftime('%d/%m %H:%M') }}</td>
+            <td class="col-saida">
+                {% if log.exit_time %}
+                    {{ log.exit_time.strftime('%d/%m %H:%M') }}
+                    <br><span style="font-size: 6pt; color: #6b7280;">{{ log.duration }}</span>
+                {% else %}
+                    <span class="em-local">Em local</span>
+                {% endif %}
+            </td>
+            <td class="col-posto">
+                <span class="badge-posto">{{ log.workstation.name if log.workstation else '-' }}</span>
+            </td>
+            <td class="col-observacao">{{ log.observations or '-' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="total-registros">
+    Total de saídas registradas: {{ logs|length }}
+</div>
+
+</body>
+</html>

@@ -153,14 +153,14 @@ def export_excel(logs):
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-def export_pdf(logs, start_date=None, end_date=None):
-    """Gera PDF com acompanhantes e posto - Cabeçalho fixo em todas as páginas"""
+def export_pdf(logs, start_date=None, end_date=None, is_today_exits=False):
+    """Gera PDF com acompanhantes e posto"""
     from xhtml2pdf import pisa
     from io import BytesIO
     from PIL import Image
     import sys
     
-    # Caminho da logo (opcional, pode remover se não precisar)
+    # Caminho da logo
     logo_path = os.path.join(current_app.root_path, 'static', 'logo.png')
     resized_logo_path = os.path.join(current_app.root_path, 'static', 'logo_resized.png')
 
@@ -176,7 +176,15 @@ def export_pdf(logs, start_date=None, end_date=None):
         logo_to_use = ""
 
     try:
-        html_content = open('app/templates/reports/pdf_template.html', encoding='utf-8').read()
+        # Escolher o template baseado no tipo de relatório
+        if is_today_exits:
+            template_file = 'reports/pdf_today_exits_template.html'
+            titulo = "RELATÓRIO DE SAÍDAS DO DIA"
+        else:
+            template_file = 'reports/pdf_template.html'
+            titulo = "RELATÓRIO DE CONTROLE DE ACESSO"
+        
+        html_content = open(f'app/templates/{template_file}', encoding='utf-8').read()
         
         # Dados do usuário
         user_data = {
@@ -222,7 +230,8 @@ def export_pdf(logs, start_date=None, end_date=None):
             end_date=end_date or '',
             logo_path=logo_to_use,
             user=user_data,
-            user_posto=user_posto
+            user_posto=user_posto,
+            titulo=titulo
         )
 
         output = BytesIO()
@@ -233,10 +242,51 @@ def export_pdf(logs, start_date=None, end_date=None):
             return redirect(url_for('reports.view_reports'))
 
         output.seek(0)
-        filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+        
+        if is_today_exits:
+            filename = f"saidas_hoje_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+        else:
+            filename = f"relatorio_acessos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
 
         return send_file(output, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
     except Exception as e:
         flash(f'Erro ao gerar PDF: {str(e)}', 'danger')
         return redirect(url_for('reports.view_reports'))
+    
+@reports.route("/export/today-exits-pdf")
+@login_required
+def export_today_exits_pdf():
+    """Exporta PDF apenas com as saídas registradas hoje"""
+    today = datetime.now().date()
+    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+    today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
+    
+    query = AccessLog.query
+    
+    # Filtrar por posto de trabalho
+    if current_user.active_workstation_id:
+        query = query.filter(AccessLog.workstation_id == current_user.active_workstation_id)
+    
+    # Apenas saídas de hoje
+    query = query.filter(
+        AccessLog.exit_time != None,
+        AccessLog.exit_time >= today_start,
+        AccessLog.exit_time <= today_end
+    )
+    
+    # Admins veem tudo, outros veem só seus registros
+    if not current_user.is_admin:
+        query = query.filter(AccessLog.user_id == current_user.id)
+    
+    logs = query.order_by(AccessLog.exit_time.desc()).all()
+    
+    if not logs:
+        flash('Nenhuma saída registrada hoje para gerar o PDF.', 'warning')
+        # Voltar para o dashboard com o filtro das saídas de hoje
+        return redirect(url_for('main.dashboard', filter='today_exits'))
+    
+    return export_pdf(logs, 
+                      start_date=today.strftime('%d/%m/%Y'), 
+                      end_date=today.strftime('%d/%m/%Y'), 
+                      is_today_exits=True)
