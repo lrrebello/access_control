@@ -403,42 +403,77 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ==================== AUTOPREENCHIMENTO ====================
+    // ==================== AUTOCOMPLETE HÍBRIDO (Native + Custom) ====================
     const authVehicles = JSON.parse(document.getElementById('data-auth-vehicles')?.textContent || '[]');
     const authDrivers = JSON.parse(document.getElementById('data-auth-drivers')?.textContent || '[]');
+
+    // Detectar se é dispositivo móvel (especialmente iOS)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     const vehicleInput = document.getElementById('vehicle_plate_input');
     const companyInput = document.getElementById('company_input');
     const typeSelect = document.getElementById('vehicle_type_select');
 
-    if (vehicleInput && companyInput && typeSelect) {
-        vehicleInput.addEventListener('input', function() {
-            const val = this.value.trim().toUpperCase();
-            this.value = val;
-            const match = authVehicles.find(v => v.plate === val);
-            if (match) {
-                companyInput.value = match.company || '';
-                typeSelect.value = match.type || 'ligeiro';
-            }
-        });
-    }
-
     const driverNameInput = document.getElementById('driver_name_input');
     const driverDocInput = document.getElementById('driver_doc_input');
 
-    if (driverNameInput && driverDocInput) {
-        driverNameInput.addEventListener('input', function() {
-            const val = this.value.trim();
-            const match = authDrivers.find(d => d.name === val);
-            if (match) {
-                driverDocInput.value = match.doc || '';
-                if (companyInput && !companyInput.value) {
-                    companyInput.value = match.company || '';
-                }
-            }
-        });
+    // Função de autopreenchimento (compartilhada)
+    function fillVehicleData(plate) {
+        const match = authVehicles.find(v => v.plate === plate);
+        if (match) {
+            companyInput.value = match.company || '';
+            typeSelect.value = match.type || 'ligeiro';
+        }
     }
 
+    function fillDriverData(name) {
+        const match = authDrivers.find(d => d.name === name);
+        if (match) {
+            driverDocInput.value = match.doc || '';
+            if (companyInput && !companyInput.value) {
+                companyInput.value = match.company || '';
+            }
+        }
+    }
+
+    // ==================== PARA VEÍCULOS ====================
+    if (vehicleInput) {
+        if (isMobile) {
+            // Mobile: usar datalist nativo + fallback manual
+            vehicleInput.addEventListener('change', function() {
+                fillVehicleData(this.value.trim().toUpperCase());
+            });
+            vehicleInput.addEventListener('blur', function() {
+                fillVehicleData(this.value.trim().toUpperCase());
+            });
+        } else {
+            // Desktop: autocomplete nativo com datalist
+            vehicleInput.addEventListener('input', function() {
+                const val = this.value.trim().toUpperCase();
+                this.value = val;
+                fillVehicleData(val);
+            });
+        }
+    }
+
+    // ==================== PARA CONDUTORES ====================
+    if (driverNameInput) {
+        if (isMobile) {
+            // Mobile: usar datalist nativo + fallback manual
+            driverNameInput.addEventListener('change', function() {
+                fillDriverData(this.value.trim());
+            });
+            driverNameInput.addEventListener('blur', function() {
+                fillDriverData(this.value.trim());
+            });
+        } else {
+            // Desktop: autocomplete nativo com datalist
+            driverNameInput.addEventListener('input', function() {
+                const val = this.value.trim();
+                fillDriverData(val);
+            });
+        }
+    }
     // ==================== CONTROLE DE CAMPOS POR TIPO ====================
     const vehicleTypeSelect = document.getElementById('vehicle_type_select');
     
@@ -510,6 +545,37 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+    /* Autocomplete customizado para mobile */
+    .custom-autocomplete-dropdown {
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .custom-autocomplete-option {
+        padding: 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+
+    .custom-autocomplete-option:active {
+        background-color: #e0e0e0;
+    }
+
+    /* Ajuste para toque no mobile */
+    @media (max-width: 768px) {
+        .custom-autocomplete-option {
+            padding: 14px 12px;
+            font-size: 16px;
+        }
+    }
     .card-stats {
         transition: transform 0.2s, box-shadow 0.2s;
         cursor: pointer;
