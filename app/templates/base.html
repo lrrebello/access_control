@@ -181,7 +181,7 @@
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.view_reports') }}">
                             <i class="bi bi-file-text"></i> Relatórios
                         </a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.occurrences') }}">
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.occurrences') }}" target="_blank">
                             <i class="bi bi-journal-text"></i> Ocorrências
                         </a></li>
                         {% if current_user.is_admin %}
@@ -204,10 +204,10 @@
                             </li>
                         {% endif %}
                         
-                        <!-- Botão Modo Escuro/Claro -->
+                        <!-- Botão Modo Escuro/Claro - Versão melhorada -->
                         <li class="nav-item">
-                            <button id="theme-toggle" class="btn btn-outline-light btn-sm ms-2" style="border-radius: 20px;">
-                                <i id="theme-icon" class="bi bi-moon-stars"></i>
+                            <button id="theme-toggle" class="btn btn-sm" style="background: transparent; border: none; color: #fff; padding: 0 8px;">
+                                <i id="theme-icon" class="bi bi-moon-stars fs-5"></i>
                             </button>
                         </li>
                         
@@ -479,5 +479,36 @@
             }
         }
     </script>
+    <style>
+        /* Botão Modo Escuro/Claro - Melhorado */
+        #theme-toggle {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        #theme-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        #theme-toggle:active {
+            transform: scale(0.95);
+        }
+
+        [data-bs-theme="dark"] #theme-toggle {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        [data-bs-theme="dark"] #theme-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+        }
+    </style>
 </body>
 </html>
