@@ -6,14 +6,14 @@
         <h4 class="mb-0">Filtro de Relatórios</h4>
     </div>
     <div class="card-body">
-        <form method="POST" class="row g-3">
+        <form method="POST" class="row g-3" id="filterForm">
             <div class="col-md-4">
                 <label class="form-label">Data Início</label>
-                <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+                <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}" id="start_date">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Data Fim</label>
-                <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+                <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}" id="end_date">
             </div>
             <div class="col-md-4 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary w-100">Filtrar</button>
@@ -31,31 +31,65 @@
                 <thead class="table-light">
                     <tr>
                         <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='vehicle_plate', sort_dir=('desc' if sort_by=='vehicle_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Matrícula {{ '↑' if sort_by=='vehicle_plate' and sort_dir=='asc' else '↓' if sort_by=='vehicle_plate' else '' }}</a>
+                            <a href="#" onclick="ordenar('vehicle_plate')" class="text-decoration-none text-dark">
+                                Matrícula 
+                                {% if sort_by == 'vehicle_plate' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='trailer_plate', sort_dir=('desc' if sort_by=='trailer_plate' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Reboque {{ '↑' if sort_by=='trailer_plate' and sort_dir=='asc' else '↓' if sort_by=='trailer_plate' else '' }}</a>
+                            <a href="#" onclick="ordenar('trailer_plate')" class="text-decoration-none text-dark">
+                                Reboque
+                                {% if sort_by == 'trailer_plate' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
                         </th>
-                        <th>Tipo</th>
                         <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='driver_name', sort_dir=('desc' if sort_by=='driver_name' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Nome {{ '↑' if sort_by=='driver_name' and sort_dir=='asc' else '↓' if sort_by=='driver_name' else '' }}</a>
+                            <a href="#" onclick="ordenar('vehicle_type')" class="text-decoration-none text-dark">
+                                Tipo
+                                {% if sort_by == 'vehicle_type' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
                         </th>
+                        <th>
+                            <a href="#" onclick="ordenar('driver_name')" class="text-decoration-none text-dark">
+                                Condutor
+                                {% if sort_by == 'driver_name' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Documento</th>
                         <th>Acompanhantes</th>
-                        <th>Total</th>
-                        <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='company', sort_dir=('desc' if sort_by=='company' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Empresa {{ '↑' if sort_by=='company' and sort_dir=='asc' else '↓' if sort_by=='company' else '' }}</a>
+                        <th class="text-center">
+                            <span class="text-dark">Total</span>
                         </th>
                         <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='entry_time', sort_dir=('desc' if sort_by=='entry_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Entrada {{ '↑' if sort_by=='entry_time' and sort_dir=='asc' else '↓' if sort_by=='entry_time' else '' }}</a>
+                            <a href="#" onclick="ordenar('company')" class="text-decoration-none text-dark">
+                                Empresa
+                                {% if sort_by == 'company' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('reports.view_reports', sort_by='exit_time', sort_dir=('desc' if sort_by=='exit_time' and sort_dir=='asc' else 'asc'), start_date=start_date, end_date=end_date) }}"
-                               class="text-decoration-none">Saída {{ '↑' if sort_by=='exit_time' and sort_dir=='asc' else '↓' if sort_by=='exit_time' else '' }}</a>
+                            <a href="#" onclick="ordenar('entry_time')" class="text-decoration-none text-dark">
+                                Entrada
+                                {% if sort_by == 'entry_time' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="#" onclick="ordenar('exit_time')" class="text-decoration-none text-dark">
+                                Saída
+                                {% if sort_by == 'exit_time' %}
+                                    {{ '↑' if sort_dir == 'asc' else '↓' }}
+                                {% endif %}
+                            </a>
                         </th>
                         <th>Observação</th>
                     </tr>
@@ -65,28 +99,22 @@
                     <tr>
                         <td>
                             <strong>{{ log.vehicle_plate }}</strong>
-                            <br><small class="text-muted">{{ log.vehicle_type }}</small>
+                            <br><span class="badge bg-secondary">{{ log.vehicle_type }}</span>
                         </td>
                         <td>{{ log.trailer_plate or '-' }}</td>
                         <td>{{ log.vehicle_type }}</td>
-                        <td>
-                            {{ log.driver_name }}
-                            <br><small class="text-muted">{{ log.driver_doc }}</small>
-                        </td>
+                        <td>{{ log.driver_name }}</td>
+                        <td>{{ log.driver_doc }}</td>
                         <td>
                             {% if log.companions %}
-                                <ul class="list-unstyled mb-0" style="font-size: 0.85rem;">
                                 {% for companion in log.companions %}
-                                    <li>• {{ companion.name }}<br><small>{{ companion.document }}</small></li>
+                                    <div class="small">{{ companion.name }} ({{ companion.document }})</div>
                                 {% endfor %}
-                                </ul>
                             {% else %}
-                                <span class="text-muted">-</span>
+                                -
                             {% endif %}
                         </td>
-                        <td class="text-center">
-                            <span class="badge bg-info">{{ log.total_people }}</span>
-                        </td>
+                        <td class="text-center"><span class="badge bg-info">{{ log.total_people }}</span></td>
                         <td>{{ log.company }}</td>
                         <td>{{ log.entry_time.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td>
@@ -94,14 +122,17 @@
                                 {{ log.exit_time.strftime('%d/%m/%Y %H:%M') }}
                                 <br><small class="text-muted">{{ log.duration }}</small>
                             {% else %}
-                                <span class="text-danger">Em local</span>
+                                <span class="badge bg-warning">Em local</span>
                             {% endif %}
                         </td>
-                        <td><small>{{ log.observations or '-' }}</small></td>
+                        <td class="small">{{ log.observations or '-' }}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="10" class="text-center py-4 text-muted">Nenhum registro encontrado no período.</td>
+                        <td colspan="11" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                            Nenhum registro encontrado no período.
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -109,4 +140,56 @@
         </div>
     </div>
 </div>
+
+<script>
+function ordenar(campo) {
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+    const currentSortBy = '{{ sort_by }}';
+    const currentSortDir = '{{ sort_dir }}';
+    
+    let newSortDir = 'asc';
+    if (currentSortBy === campo) {
+        newSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    }
+    
+    let url = "{{ url_for('reports.view_reports') }}?sort_by=" + campo + "&sort_dir=" + newSortDir;
+    
+    if (startDate) {
+        url += "&start_date=" + startDate;
+    }
+    if (endDate) {
+        url += "&end_date=" + endDate;
+    }
+    
+    window.location.href = url;
+}
+</script>
+
+<style>
+    .table th, .table td {
+        vertical-align: middle;
+        padding: 10px 8px;
+    }
+    .table td {
+        word-wrap: break-word;
+        max-width: 250px;
+    }
+    .badge {
+        font-weight: normal;
+    }
+    .table th a {
+        font-weight: 600;
+    }
+    .table th a:hover {
+        color: #0d6efd !important;
+        text-decoration: underline !important;
+    }
+    @media (max-width: 768px) {
+        .table th, .table td {
+            font-size: 11px;
+            padding: 6px 4px;
+        }
+    }
+</style>
 {% endblock %}

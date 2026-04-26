@@ -32,9 +32,15 @@ def view_reports():
     if sort_dir not in ['asc', 'desc']:
         sort_dir = 'desc'
 
-    # Filtros de data
-    start_date_str = request.form.get('start_date') or request.args.get('start_date')
-    end_date_str = request.form.get('end_date') or request.args.get('end_date')
+    # Filtros de data - suporta GET e POST
+    start_date_str = request.args.get('start_date') or request.form.get('start_date')
+    end_date_str = request.args.get('end_date') or request.form.get('end_date')
+    
+    # Se não houver nenhum filtro, mostrar registros do dia atual
+    if not start_date_str and not end_date_str and request.method == 'GET' and not request.args.get('sort_by'):
+        today = datetime.now().date()
+        start_date_str = today.strftime('%Y-%m-%d')
+        end_date_str = today.strftime('%Y-%m-%d')
 
     query = AccessLog.query
     
@@ -55,7 +61,7 @@ def view_reports():
 
     logs = query.all()
 
-    # Exportações
+    # Exportações (apenas via POST)
     if request.method == 'POST':
         if 'export_excel' in request.form:
             return export_excel(logs)
