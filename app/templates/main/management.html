@@ -9,7 +9,7 @@
                 <h5 class="mb-0">Novo Cadastro / Autorização</h5>
             </div>
             <div class="card-body">
-                <form method="POST" id="managementForm">
+                <form method="POST" action="{{ url_for('main.add_authorized', m_type='vehicle') }}" id="managementForm">
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label small mb-1">Tipo de Cadastro</label>
@@ -24,7 +24,7 @@
                         <div id="vehicle_fields">
                             <div class="col-12">
                                 <label class="form-label small mb-1">Matrícula do Veículo</label>
-                                <input type="text" name="vehicle_plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: AA-12-34">
+                                <input type="text" name="plate" id="vehicle_plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: AA-12-34">
                             </div>
                             <div class="col-12 mt-2">
                                 <label class="form-label small mb-1">Tipo de Veículo</label>
@@ -41,7 +41,7 @@
                         <div id="trailer_fields" style="display: none;">
                             <div class="col-12">
                                 <label class="form-label small mb-1">Matrícula do Reboque</label>
-                                <input type="text" name="trailer_plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: RE-12-34">
+                                <input type="text" name="plate" id="trailer_plate" class="form-control form-control-sm text-uppercase" placeholder="Ex: RE-12-34">
                             </div>
                         </div>
 
@@ -49,11 +49,11 @@
                         <div id="driver_fields" style="display: none;">
                             <div class="col-12">
                                 <label class="form-label small mb-1">Nome Completo</label>
-                                <input type="text" name="driver_name" class="form-control form-control-sm">
+                                <input type="text" name="driver_name" id="driver_name_input" class="form-control form-control-sm">
                             </div>
                             <div class="col-12 mt-2">
                                 <label class="form-label small mb-1">Documento de Identificação</label>
-                                <input type="text" name="driver_document" class="form-control form-control-sm" placeholder="BI, Cartão de Cidadão, NIF, etc.">
+                                <input type="text" name="driver_document" id="driver_document_input" class="form-control form-control-sm" placeholder="BI, Cartão de Cidadão, NIF, etc.">
                             </div>
                         </div>
 
@@ -180,14 +180,31 @@ document.getElementById('reg_type').addEventListener('change', function() {
     document.getElementById('trailer_fields').style.display = 'none';
     document.getElementById('driver_fields').style.display = 'none';
     
-    // Mostrar apenas o grupo selecionado
+    // Remover required de todos os campos
+    document.getElementById('vehicle_plate')?.removeAttribute('required');
+    document.getElementById('trailer_plate')?.removeAttribute('required');
+    document.getElementById('driver_name_input')?.removeAttribute('required');
+    document.getElementById('driver_document_input')?.removeAttribute('required');
+    
+    // Mostrar apenas o grupo selecionado e adicionar required
     if (type === 'vehicle') {
         document.getElementById('vehicle_fields').style.display = 'block';
+        document.getElementById('vehicle_plate')?.setAttribute('required', 'required');
     } else if (type === 'trailer') {
         document.getElementById('trailer_fields').style.display = 'block';
+        document.getElementById('trailer_plate')?.setAttribute('required', 'required');
     } else if (type === 'driver') {
         document.getElementById('driver_fields').style.display = 'block';
+        document.getElementById('driver_name_input')?.setAttribute('required', 'required');
+        document.getElementById('driver_document_input')?.setAttribute('required', 'required');
     }
+});
+
+// Atualizar ação do formulário com base no tipo selecionado
+document.getElementById('reg_type').addEventListener('change', function() {
+    const type = this.value;
+    const form = document.getElementById('managementForm');
+    form.action = "{{ url_for('main.add_authorized', m_type='') }}" + type;
 });
 
 // Disparar o evento ao carregar
